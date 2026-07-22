@@ -1,0 +1,339 @@
+---
+/**
+ * Testimonials — témoignages clients animés.
+ * Adapté de 21st.dev → Aceternity UI "Animated Testimonials"
+ * (https://21st.dev/aceternity/animated-testimonials/default), porté en Astro + GSAP.
+ *
+ * Pile d'images avec rotation 3D, citation révélée mot à mot,
+ * navigation précédent/suivant et autoplay (actif quand la section est visible).
+ * Sans JS, les trois témoignages restent lisibles en flux normal.
+ *
+ * NOTE: contenu placeholder — remplacer par de vrais retours clients.
+ */
+const testimonials = [
+  {
+    quote:
+      "Les images aériennes ont transformé notre annonce. Un angle qu'aucun autre photographe ne nous avait proposé — la propriété s'est démarquée immédiatement.",
+    name: 'Marie-Ève Tremblay',
+    role: 'Courtière immobilière — Québec',
+    image: '/assets/gallery/_DSC6797.jpeg',
+  },
+  {
+    quote:
+      "Un regard véritablement cinématographique. Le film de notre événement dépasse tout ce qu'on espérait — la lumière, le rythme, l'émotion.",
+    name: 'Julien Bergeron',
+    role: 'Directeur événementiel',
+    image: '/assets/gallery/20260220-DSC09485.jpeg',
+  },
+  {
+    quote:
+      "Du repérage au montage, un professionnalisme exemplaire. Les relevés par drone nous font gagner des journées complètes sur chaque chantier.",
+    name: 'Catherine Roy',
+    role: 'Gestionnaire de projets — construction',
+    image: '/assets/gallery/_DSC6600.jpeg',
+  },
+];
+
+const pad = n => String(n).padStart(2, '0');
+---
+
+<section id="temoignages" class="tmn-section">
+  <div class="section-inner">
+    <h2 class="section-label">Témoignages</h2>
+
+    <div class="gsap-section tmn-grid" data-tmn>
+
+      <div class="tmn-stack" aria-hidden="true">
+        {testimonials.map(t => (
+          <img class="tmn-img" data-tmn-img src={t.image} alt="" loading="lazy" decoding="async" />
+        ))}
+      </div>
+
+      <div class="tmn-content">
+        <div class="tmn-quotes" data-tmn-quotes aria-live="polite">
+          {testimonials.map(t => (
+            <figure class="tmn-item" data-tmn-item>
+              <blockquote class="tmn-quote" data-tmn-quote>{t.quote}</blockquote>
+              <figcaption class="tmn-caption">
+                <span class="tmn-name">{t.name}</span>
+                <span class="tmn-role">{t.role}</span>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+
+        <div class="tmn-controls" data-tmn-controls>
+          <button class="tmn-btn" data-tmn-prev aria-label="Témoignage précédent">←</button>
+          <span class="tmn-counter" data-tmn-counter>01 / {pad(testimonials.length)}</span>
+          <button class="tmn-btn" data-tmn-next aria-label="Témoignage suivant">→</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<style>
+  .tmn-section {
+    background: var(--surface-alt);
+    padding: var(--s-4xl) 0;
+  }
+
+  .tmn-grid {
+    display: grid;
+    grid-template-columns: minmax(15rem, 24rem) minmax(0, 1fr);
+    gap: clamp(var(--s-2xl), 6vw, var(--s-4xl));
+    align-items: center;
+    margin-top: var(--s-2xl);
+  }
+
+  @media (max-width: 900px) {
+    .tmn-grid { grid-template-columns: 1fr; }
+    .tmn-stack { max-width: 22rem; }
+  }
+
+  /* ── Pile d'images ── */
+  .tmn-stack {
+    position: relative;
+    aspect-ratio: 4 / 5;
+    perspective: 1000px;
+  }
+
+  .tmn-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border: 1px solid var(--border);
+    will-change: transform, opacity;
+  }
+
+  /* Empilement statique léger avant JS */
+  .tmn-img:nth-child(2) { transform: rotate(4deg) scale(0.96); }
+  .tmn-img:nth-child(3) { transform: rotate(-5deg) scale(0.94); }
+
+  /* ── Citations ── */
+  .tmn-quotes {
+    position: relative;
+  }
+
+  /* En mode JS, les items s'empilent ; sans JS ils restent en flux */
+  .tmn-quotes.is-js .tmn-item {
+    position: absolute;
+    inset: 0 0 auto 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .tmn-quotes.is-js .tmn-item.is-active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .tmn-item + .tmn-item { margin-top: var(--s-2xl); }
+  .tmn-quotes.is-js .tmn-item + .tmn-item { margin-top: 0; }
+
+  .tmn-quote {
+    font-weight: 200;
+    font-size: clamp(1.15rem, 2.2vw, 1.65rem);
+    line-height: 1.5;
+    color: var(--text);
+    max-width: 38ch;
+  }
+
+  .tmn-quote :global(span) {
+    display: inline-block;
+    will-change: transform, opacity, filter;
+  }
+
+  .tmn-caption {
+    margin-top: var(--s-xl);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s-xs);
+  }
+
+  .tmn-name {
+    font-weight: 400;
+    font-size: 1rem;
+    color: var(--text);
+  }
+
+  .tmn-role {
+    font-family: var(--font-label);
+    font-size: 0.78rem;
+    font-weight: 300;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  /* ── Contrôles ── */
+  .tmn-controls {
+    display: none;
+    align-items: center;
+    gap: var(--s-lg);
+    margin-top: var(--s-2xl);
+  }
+
+  .tmn-controls.is-js { display: flex; }
+
+  .tmn-btn {
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 50%;
+    border: 1px solid var(--border-control);
+    background: transparent;
+    color: var(--muted);
+    font-size: 1rem;
+    cursor: pointer;
+    transition: border-color 0.3s ease, color 0.3s ease;
+  }
+
+  .tmn-btn:hover,
+  .tmn-btn:focus-visible {
+    border-color: var(--accent);
+    color: var(--text);
+    outline: none;
+  }
+
+  .tmn-counter {
+    font-family: var(--font-label);
+    font-size: 0.8rem;
+    font-weight: 300;
+    letter-spacing: 0.24em;
+    color: var(--dim);
+  }
+</style>
+
+<script>
+  import gsap from 'gsap';
+  import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  const root = document.querySelector('[data-tmn]');
+
+  if (root) {
+    const images   = gsap.utils.toArray(root.querySelectorAll('[data-tmn-img]'));
+    const quotesEl = root.querySelector('[data-tmn-quotes]');
+    const items    = gsap.utils.toArray(root.querySelectorAll('[data-tmn-item]'));
+    const controls = root.querySelector('[data-tmn-controls]');
+    const counter  = root.querySelector('[data-tmn-counter]');
+    const total    = items.length;
+    const pad      = n => String(n).padStart(2, '0');
+
+    // Découpe chaque citation en spans mot à mot (une seule fois)
+    const wordSets = items.map(item => {
+      const quote = item.querySelector('[data-tmn-quote]');
+      const text  = quote.textContent.trim();
+      quote.setAttribute('aria-label', text);
+      quote.textContent = '';
+      return text.split(/\s+/).map(word => {
+        const s = document.createElement('span');
+        s.textContent = word;
+        s.setAttribute('aria-hidden', 'true');
+        quote.appendChild(s);
+        quote.appendChild(document.createTextNode(' '));
+        return s;
+      });
+    });
+
+    // Hauteur fixe = item le plus haut (mesuré avant le passage en absolu)
+    const setHeight = () => {
+      quotesEl.classList.remove('is-js');
+      const controlsWasJs = controls.classList.contains('is-js');
+      const h = Math.max(...items.map(el => el.offsetHeight));
+      quotesEl.style.minHeight = `${h}px`;
+      quotesEl.classList.add('is-js');
+      if (controlsWasJs) controls.classList.add('is-js');
+    };
+    setHeight();
+    controls.classList.add('is-js');
+    window.addEventListener('resize', () => setHeight());
+
+    // Rotations aléatoires de la pile (signature du composant Aceternity)
+    const rotations = images.map((_, i) => (i % 2 ? 1 : -1) * gsap.utils.random(4, 8));
+
+    let index = 0;
+
+    const show = (next, animate = true) => {
+      index = (next + total) % total;
+
+      images.forEach((img, i) => {
+        const active = i === index;
+        img.style.zIndex = active ? 10 : total - i;
+        gsap.to(img, {
+          rotationY: active ? 0 : 0.01,
+          rotation: active ? 0 : rotations[i],
+          scale: active ? 1 : 0.94,
+          opacity: active ? 1 : 0.6,
+          y: active ? 0 : 12,
+          duration: animate ? 0.8 : 0,
+          ease: 'power3.inOut',
+        });
+      });
+
+      // Entrée 3D de l'image active
+      if (animate) {
+        gsap.fromTo(images[index],
+          { rotationY: -18, transformPerspective: 1000 },
+          { rotationY: 0, duration: 0.8, ease: 'power3.out' }
+        );
+      }
+
+      items.forEach((item, i) => item.classList.toggle('is-active', i === index));
+
+      const words = wordSets[index];
+      gsap.fromTo(words,
+        { opacity: 0, y: 14, filter: 'blur(7px)' },
+        {
+          opacity: 1, y: 0, filter: 'blur(0px)',
+          duration: animate ? 0.5 : 0,
+          stagger: animate ? 0.016 : 0,
+          ease: 'power3.out',
+          overwrite: true,
+        }
+      );
+
+      const caption = items[index].querySelector('.tmn-caption');
+      gsap.fromTo(caption,
+        { opacity: 0, y: 10 },
+        { opacity: 1, y: 0, duration: animate ? 0.55 : 0, delay: animate ? 0.25 : 0, ease: 'power3.out', overwrite: true }
+      );
+
+      counter.textContent = `${pad(index + 1)} / ${pad(total)}`;
+    };
+
+    show(0, false);
+
+    // ── Autoplay — uniquement quand la section est visible ──
+    let timer = null;
+    const startAutoplay = () => {
+      stopAutoplay();
+      timer = setInterval(() => show(index + 1), 6000);
+    };
+    const stopAutoplay = () => {
+      if (timer) { clearInterval(timer); timer = null; }
+    };
+
+    ScrollTrigger.create({
+      trigger: root,
+      start: 'top 80%',
+      end: 'bottom top',
+      onEnter: startAutoplay,
+      onEnterBack: startAutoplay,
+      onLeave: stopAutoplay,
+      onLeaveBack: stopAutoplay,
+    });
+
+    root.querySelector('[data-tmn-prev]').addEventListener('click', () => {
+      show(index - 1);
+      startAutoplay();
+    });
+    root.querySelector('[data-tmn-next]').addEventListener('click', () => {
+      show(index + 1);
+      startAutoplay();
+    });
+  }
+</script>

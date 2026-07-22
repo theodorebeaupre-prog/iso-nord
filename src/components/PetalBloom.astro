@@ -1,0 +1,178 @@
+---
+/**
+ * PetalBloom — fond décoratif « fleur de verre » (esprit fond d'écran iOS).
+ *
+ * Bloom en symétrie radiale : de longs pétales-lentilles translucides
+ * convergent en un point central. Cobalt saturé au cœur (les bases se
+ * superposent → cœur bleu nuit), dégradé vers des pointes bleu givré
+ * translucides. Trois couronnes concentriques donnent la profondeur de verre.
+ *
+ * Props :
+ *   petals   — nombre de pétales par couronne (10–16 conseillé)   [12]
+ *   centerX  — position horizontale du centre, en %                [50]
+ *   centerY  — position verticale du centre, en %                  [50]
+ *   animate  — rotation très lente du motif                        [true]
+ *   overlay  — voile de lisibilité en haut de cadre                [false]
+ *   class    — classes supplémentaires sur le conteneur
+ */
+interface Props {
+  petals?: number;
+  centerX?: number;
+  centerY?: number;
+  animate?: boolean;
+  overlay?: boolean;
+  class?: string;
+}
+
+const {
+  petals = 10,
+  centerX = 50,
+  centerY = 50,
+  animate = true,
+  overlay = false,
+  class: className = '',
+} = Astro.props;
+
+const VBW = 1920;
+const VBH = 1080;
+const cx = (centerX / 100) * VBW;
+const cy = (centerY / 100) * VBH;
+
+// Pétale-lentille : pointe nette au centre (cx,cy), corps large, pointe
+// douce à l'extrémité (cx, cy−len). Plus large vers 60 % de la longueur.
+// Pétale-lentille large, à pointe arrondie — proche des lobes lisses du réf.
+const petal = (len: number, wid: number) =>
+  `M ${cx} ${cy} ` +
+  `C ${cx - wid * 0.7} ${cy - len * 0.42} ${cx - wid} ${cy - len * 0.78} ${cx} ${cy - len} ` +
+  `C ${cx + wid} ${cy - len * 0.78} ${cx + wid * 0.7} ${cy - len * 0.42} ${cx} ${cy} Z`;
+
+const LEN = 800;
+
+// Trois couronnes : longue/pâle, moyenne, courte/dense. Les couronnes
+// paire/impaire sont décalées d'un demi-pas pour un remplissage plein.
+const rings = [
+  { d: petal(LEN, 188), grad: 'petalPale', cls: 'bloom__ring--outer', offset: 0 },
+  { d: petal(LEN * 0.64, 205), grad: 'petalDeep', cls: 'bloom__ring--mid', offset: 0.5 },
+  { d: petal(LEN * 0.38, 158), grad: 'petalDeep', cls: 'bloom__ring--inner', offset: 0 },
+];
+
+const step = 360 / petals;
+const angles = (off: number) =>
+  Array.from({ length: petals }, (_, i) => step * i + step * off);
+
+const rootClass = ['bloom', animate ? 'bloom--animate' : '', className]
+  .filter(Boolean)
+  .join(' ');
+---
+
+<div class={rootClass} aria-hidden="true">
+  <svg
+    class="bloom__svg"
+    viewBox={`0 0 ${VBW} ${VBH}`}
+    preserveAspectRatio="xMidYMid slice"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <defs>
+      <radialGradient id="bloomBg" cx={`${centerX}%`} cy={`${centerY}%`} r="80%">
+        <stop offset="0%" stop-color="#EAF1FB" />
+        <stop offset="55%" stop-color="#E4EDF8" />
+        <stop offset="100%" stop-color="#D6E2F1" />
+      </radialGradient>
+
+      <!-- Base (bas de bbox) cobalt → pointe (haut) bleu givré translucide -->
+      <linearGradient id="petalDeep" gradientUnits="objectBoundingBox" x1="0.5" y1="1" x2="0.5" y2="0">
+        <stop offset="0%" stop-color="#12318F" stop-opacity="0.92" />
+        <stop offset="30%" stop-color="#2B4FC4" stop-opacity="0.82" />
+        <stop offset="66%" stop-color="#7CA0E6" stop-opacity="0.55" />
+        <stop offset="100%" stop-color="#EEF4FF" stop-opacity="0" />
+      </linearGradient>
+
+      <linearGradient id="petalPale" gradientUnits="objectBoundingBox" x1="0.5" y1="1" x2="0.5" y2="0">
+        <stop offset="0%" stop-color="#3E63CE" stop-opacity="0.58" />
+        <stop offset="38%" stop-color="#89ABEA" stop-opacity="0.44" />
+        <stop offset="72%" stop-color="#C4D6F4" stop-opacity="0.3" />
+        <stop offset="100%" stop-color="#F5F8FC" stop-opacity="0" />
+      </linearGradient>
+
+      <!-- Fine arête lumineuse pour la « lentille de verre » -->
+      <linearGradient id="petalSheen" gradientUnits="objectBoundingBox" x1="0.5" y1="1" x2="0.5" y2="0">
+        <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0" />
+        <stop offset="55%" stop-color="#FFFFFF" stop-opacity="0.5" />
+        <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0" />
+      </linearGradient>
+    </defs>
+
+    <rect x="0" y="0" width={VBW} height={VBH} fill="url(#bloomBg)" />
+
+    <g class="bloom__spin">
+      {rings.map(r => (
+        <g class={`bloom__ring ${r.cls}`}>
+          {angles(r.offset).map(a => (
+            <path d={r.d} transform={`rotate(${a} ${cx} ${cy})`} fill={`url(#${r.grad})`} />
+          ))}
+        </g>
+      ))}
+
+      <!-- Arêtes lumineuses (couronne longue) -->
+      <g class="bloom__sheen">
+        {angles(0).map(a => (
+          <path d={petal(LEN, 30)} transform={`rotate(${a} ${cx} ${cy})`} fill="url(#petalSheen)" />
+        ))}
+      </g>
+    </g>
+
+    {overlay && <rect x="0" y="0" width={VBW} height={VBH * 0.5} fill="url(#bloomBg)" opacity="0.4" />}
+  </svg>
+</div>
+
+<style>
+  .bloom {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+    background: #D6E2F1;
+  }
+
+  .bloom__svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .bloom__spin {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  .bloom--animate .bloom__spin {
+    animation: bloom-spin 110s linear infinite;
+  }
+
+  /* Fusion « verre » : les recouvrements de bases se densifient au cœur. */
+  .bloom__ring {
+    mix-blend-mode: multiply;
+    filter: blur(3px);
+  }
+
+  .bloom__ring--outer { opacity: 0.55; }
+  .bloom__ring--mid   { opacity: 0.6; }
+  .bloom__ring--inner { opacity: 0.68; }
+
+  .bloom__sheen {
+    mix-blend-mode: screen;
+    filter: blur(2px);
+    opacity: 0.5;
+  }
+
+  @keyframes bloom-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bloom--animate .bloom__spin { animation: none; }
+  }
+</style>

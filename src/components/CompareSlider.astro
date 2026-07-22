@@ -1,0 +1,253 @@
+---
+/**
+ * CompareSlider — avant/après interactif.
+ * Adapté de 21st.dev → Aceternity UI "Compare"
+ * (https://21st.dev/aceternity/compare/default), porté en Astro + GSAP.
+ *
+ * La couche « brut » est la même image avec un filtre plat (profil log simulé) ;
+ * le divider suit le pointeur (survol desktop, drag du handle au tactile).
+ */
+interface Props {
+  image?: string;
+  alt?: string;
+}
+
+const {
+  image = '/assets/gallery/20241031-DJI_0177.jpeg',
+  alt = 'Chutes en automne vues du drone — comparaison avant et après étalonnage',
+} = Astro.props;
+---
+
+<section id="etalonnage" class="compare-section">
+  <div class="section-inner">
+
+    <div class="compare-head">
+      <h2 class="section-label">Étalonnage</h2>
+      <p class="gsap-section compare-sub">
+        L'image brute n'est que la moitié du travail.
+        <span class="compare-hint">Glissez pour comparer.</span>
+      </p>
+    </div>
+
+    <figure class="gsap-section compare-frame" data-compare>
+      <img class="compare-img" src={image} alt={alt} loading="lazy" decoding="async" />
+
+      <div class="compare-before" data-compare-before aria-hidden="true">
+        <img class="compare-img compare-img--flat" src={image} alt="" loading="lazy" decoding="async" />
+      </div>
+
+      <div class="compare-divider" data-compare-divider>
+        <button
+          class="compare-handle"
+          data-compare-handle
+          aria-label="Glisser pour comparer l'image brute et l'image étalonnée"
+        >
+          <span aria-hidden="true">←</span>
+          <span aria-hidden="true">→</span>
+        </button>
+      </div>
+
+      <figcaption class="compare-tags" aria-hidden="true">
+        <span class="compare-tag">Brut</span>
+        <span class="compare-tag">Étalonné</span>
+      </figcaption>
+    </figure>
+
+  </div>
+</section>
+
+<style>
+  .compare-section {
+    background: var(--surface-alt);
+    padding: var(--s-4xl) 0;
+  }
+
+  .compare-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--s-md);
+    margin-bottom: var(--s-2xl);
+  }
+
+  .compare-sub {
+    font-weight: 200;
+    font-size: clamp(1rem, 1.6vw, 1.2rem);
+    color: var(--muted);
+    max-width: 34ch;
+  }
+
+  .compare-hint {
+    display: block;
+    margin-top: var(--s-xs);
+    font-family: var(--font-label);
+    font-size: 0.78rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  .compare-frame {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    cursor: ew-resize;
+    /* le drag du handle gère le tactile ; le frame reste scrollable */
+  }
+
+  @media (max-width: 768px) {
+    .compare-frame { aspect-ratio: 4 / 3; }
+  }
+
+  .compare-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* Profil plat simulé — rendu « sorti de capteur » */
+  .compare-img--flat {
+    filter: saturate(0.5) contrast(0.84) brightness(1.08);
+  }
+
+  .compare-before {
+    position: absolute;
+    inset: 0;
+    clip-path: inset(0 50% 0 0);
+    will-change: clip-path;
+  }
+
+  .compare-divider {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    background: oklch(97% 0.003 130 / 0.55);
+    will-change: left;
+  }
+
+  .compare-handle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.55rem 0.8rem;
+    border: 1px solid oklch(97% 0.003 130 / 0.6);
+    border-radius: 999px;
+    background: oklch(5.1% 0.005 130 / 0.55);
+    backdrop-filter: blur(6px);
+    color: var(--text);
+    font-size: 0.8rem;
+    cursor: ew-resize;
+    touch-action: none;
+    transition: border-color 0.3s ease;
+  }
+
+  .compare-handle:hover,
+  .compare-handle:focus-visible {
+    border-color: var(--accent);
+    outline: none;
+  }
+
+  .compare-tags {
+    position: absolute;
+    inset: auto 0 0 0;
+    display: flex;
+    justify-content: space-between;
+    padding: var(--s-md) var(--s-lg);
+    pointer-events: none;
+  }
+
+  .compare-tag {
+    font-family: var(--font-label);
+    font-size: 0.74rem;
+    font-weight: 300;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--text);
+    background: oklch(5.1% 0.005 130 / 0.5);
+    backdrop-filter: blur(4px);
+    padding: 0.3rem 0.7rem;
+  }
+</style>
+
+<script>
+  import gsap from 'gsap';
+  import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  const frame = document.querySelector('[data-compare]');
+
+  if (frame) {
+    const before  = frame.querySelector('[data-compare-before]');
+    const divider = frame.querySelector('[data-compare-divider]');
+    const handle  = frame.querySelector('[data-compare-handle]');
+
+    const pos = { p: 50 };
+
+    const render = () => {
+      before.style.clipPath = `inset(0 ${100 - pos.p}% 0 0)`;
+      divider.style.left = `${pos.p}%`;
+    };
+    render();
+
+    const glide = (target, duration = 0.5) => {
+      gsap.to(pos, {
+        p: gsap.utils.clamp(1.5, 98.5, target),
+        duration,
+        ease: 'power3.out',
+        onUpdate: render,
+        overwrite: true,
+      });
+    };
+
+    const toPercent = clientX => {
+      const r = frame.getBoundingClientRect();
+      return ((clientX - r.left) / r.width) * 100;
+    };
+
+    // Survol — mode "hover" du composant Aceternity (pointeurs fins)
+    if (window.matchMedia('(pointer: fine)').matches) {
+      frame.addEventListener('pointermove', e => glide(toPercent(e.clientX)));
+      frame.addEventListener('pointerleave', () => glide(50, 0.9));
+    }
+
+    // Drag du handle — tactile et souris
+    let dragging = false;
+    handle.addEventListener('pointerdown', e => {
+      dragging = true;
+      handle.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    handle.addEventListener('pointermove', e => {
+      if (dragging) glide(toPercent(e.clientX), 0.25);
+    });
+    ['pointerup', 'pointercancel'].forEach(type =>
+      handle.addEventListener(type, () => { dragging = false; })
+    );
+
+    // Clavier
+    handle.addEventListener('keydown', e => {
+      if (e.key === 'ArrowLeft')  { e.preventDefault(); glide(pos.p - 6, 0.35); }
+      if (e.key === 'ArrowRight') { e.preventDefault(); glide(pos.p + 6, 0.35); }
+    });
+
+    // Balayage d'intro à l'entrée dans le viewport
+    gsap.fromTo(pos, { p: 8 }, {
+      p: 50,
+      duration: 1.7,
+      ease: 'power3.inOut',
+      onUpdate: render,
+      scrollTrigger: { trigger: frame, start: 'top 75%', once: true },
+    });
+  }
+</script>

@@ -1,0 +1,51 @@
+---
+/**
+ * LangSwitch — bascule FR/EN.
+ *
+ * Le lien pointe vers la page équivalente dans l'autre langue. Un cookie `lang`
+ * est posé (a) au chargement, égal à la langue courante — pour mémoriser la
+ * préférence — et (b) au clic sur le sélecteur, égal à la langue cible AVANT la
+ * navigation — pour que l'Edge Middleware ne renvoie pas le visiteur en arrière.
+ *
+ * Props :
+ *   lang  — langue courante ('fr' | 'en')
+ *   page  — clé de page (home | labs | portfolio | privacy)
+ *   class — classes CSS optionnelles pour s'accorder à chaque nav
+ */
+import type { Lang } from '../i18n/ui';
+import { ui } from '../i18n/ui';
+import { pathFor, other, type PageKey } from '../i18n/utils';
+
+interface Props {
+  lang: Lang;
+  page: PageKey;
+  class?: string;
+}
+const { lang, page, class: klass = '' } = Astro.props;
+const target = other(lang);
+const c = ui[lang].common;
+---
+
+<a
+  href={pathFor(page, target)}
+  hreflang={target}
+  data-lang-switch={target}
+  class={`lang-switch ${klass}`}
+  aria-label={c.switchAria}
+>
+  {c.switchTo}
+</a>
+
+<script is:inline define:vars={{ current: lang }}>
+  (function () {
+    const YEAR = 'path=/; max-age=31536000; samesite=lax';
+    // Mémorise la langue de la page courante.
+    document.cookie = 'lang=' + current + '; ' + YEAR;
+    // Au clic, pose la langue cible avant de naviguer (évite le rebond géo).
+    document.querySelectorAll('[data-lang-switch]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        document.cookie = 'lang=' + el.getAttribute('data-lang-switch') + '; ' + YEAR;
+      });
+    });
+  })();
+</script>

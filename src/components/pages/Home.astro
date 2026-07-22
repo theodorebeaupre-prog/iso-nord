@@ -1,0 +1,307 @@
+---
+import '../../styles/global.css';
+import HeroVideo from '../HeroVideo.astro';
+import InstrumentHud from '../InstrumentHud.astro';
+import LangSwitch from '../LangSwitch.astro';
+import { ui, type Lang } from '../../i18n/ui';
+import { pathFor, alternates, SITE } from '../../i18n/utils';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const t = ui[lang];
+const c = t.common;
+const h = t.home;
+
+const canonical = SITE + pathFor('home', lang);
+const alts = alternates('home');
+const ogLocale = lang === 'fr' ? 'fr_CA' : 'en_CA';
+const pad = (n: number) => String(n).padStart(2, '0');
+const pad3 = (n: number) => String(n).padStart(3, '0');
+
+const navAria = lang === 'fr' ? 'Navigation principale' : 'Main navigation';
+const footerAria = lang === 'fr' ? 'Navigation de pied de page' : 'Footer navigation';
+const igAria = lang === 'fr'
+  ? `Instagram ISO Nord, @iso_nord (${c.openNewTab})`
+  : `ISO Nord on Instagram, @iso_nord ${c.openNewTab}`;
+
+// Images de la galerie « Réalisations » (ordre figé) — zippées avec le dico.
+const galleryImgs = [
+  { src: '/assets/gallery/dji_fly_20250421_152710_278_1745273849398_photo_optimized.jpeg', wide: false },
+  { src: '/assets/gallery/C8F52EF9-ACE7-46BD-A134-F08434A5C40A.jpeg', wide: true },
+  { src: '/assets/gallery/_DSC6569.jpeg', wide: false },
+  { src: '/assets/gallery/20241031-DJI_0177.jpeg', wide: true },
+  { src: '/assets/gallery/_DSC7570.jpeg', wide: false },
+  { src: '/assets/gallery/20260510-_DSC9808.jpeg', wide: false },
+  { src: '/assets/gallery/20260510-_DSC9773.jpeg', wide: true },
+  { src: '/assets/gallery/dji_fly_20250822_202234_0161_1755959281818_photo.jpeg', wide: false },
+  { src: '/assets/gallery/20260510-_DSC9925.jpeg', wide: true },
+  { src: '/assets/gallery/dji_fly_20240807_142154_25_1723055092537_photo_optimized.jpeg', wide: false },
+];
+
+const knowsAbout = lang === 'fr'
+  ? ['Photographie commerciale', 'Vidéographie', 'Drone', 'Imagerie aérienne', 'Contenu réseaux sociaux']
+  : ['Commercial photography', 'Videography', 'Drone', 'Aerial imaging', 'Social media content'];
+---
+
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={h.description} />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#141318" />
+    <link rel="canonical" href={canonical} />
+    {alts.map((a) => <link rel="alternate" hreflang={a.hreflang} href={a.href} />)}
+    <link rel="icon" type="image/png" sizes="512x512" href="/favicon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <link rel="icon" href="/favicon.ico" />
+    <title>{h.title}</title>
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ISO Nord" />
+    <meta property="og:title" content={h.title} />
+    <meta property="og:description" content={h.ogDescription} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content="https://theo-picture.com/assets/hero-camera-poster.jpg" />
+    <meta property="og:locale" content={ogLocale} />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={h.title} />
+    <meta name="twitter:description" content={h.twitterDescription} />
+    <meta name="twitter:image" content="https://theo-picture.com/assets/hero-camera-poster.jpg" />
+
+    <!-- Structured data -->
+    <script type="application/ld+json" is:inline set:html={JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'ProfessionalService',
+      name: 'ISO Nord',
+      description: h.description,
+      url: canonical,
+      email: 'info@theo-picture.com',
+      image: 'https://theo-picture.com/assets/hero-camera-poster.jpg',
+      address: { '@type': 'PostalAddress', addressLocality: 'Québec', addressRegion: 'QC', addressCountry: 'CA' },
+      geo: { '@type': 'GeoCoordinates', latitude: 46.8, longitude: -71.23 },
+      sameAs: ['https://instagram.com/iso_nord'],
+      knowsAbout,
+    })} />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500&family=Archivo+Expanded:wght@200;300;500&family=Barlow+Condensed:wght@300;400&display=swap" rel="stylesheet" />
+
+    <link rel="preload" as="image" href="/assets/hero-camera-poster.jpg" />
+  </head>
+
+  <body>
+
+    <a href="#main" class="skip-link">{c.skipLink}</a>
+
+    <InstrumentHud lang={lang} />
+
+    <!-- ─── Nav ──────────────────────────────────────────────────────────── -->
+    <nav class="nav" aria-label={navAria}>
+      <a href="#hero" class="nav-wordmark">ISO Nord</a>
+      <div class="nav-links">
+        <a href={pathFor('portfolio', lang)} class="nav-contact">{c.navPortfolio}</a>
+        <a href="#contact" class="nav-contact">{c.navContact}</a>
+        <LangSwitch lang={lang} page="home" />
+      </div>
+    </nav>
+
+    <main id="main" tabindex="-1">
+
+    <HeroVideo lang={lang} />
+
+    <!-- ─── Marquee ─────────────────────────────────────────────────────────── -->
+    <div class="marquee-strip" aria-hidden="true">
+      <div class="marquee-track">
+        {[...h.marquee, ...h.marquee].map((item) => (
+          <>
+            <span class="marquee-item">{item}</span><span class="marquee-sep">·</span>
+          </>
+        ))}
+      </div>
+    </div>
+
+    <!-- ─── Services ──────────────────────────────────────────────────────── -->
+    <section id="services" class="services-section">
+      <div class="section-inner">
+        <div class="gsap-section section-head">
+          <h2 class="section-label">{h.servicesLabel}</h2>
+        </div>
+        {h.services.map((s, i) => (
+          <div class="gsap-section service-item">
+            <span class="service-number">{pad(i + 1)}</span>
+            <div class="service-content">
+              <div class="service-header">
+                <h3 class="service-name">{s.name}</h3>
+                <span class="service-arrow" aria-hidden="true">→</span>
+              </div>
+              <p class="service-desc">{s.desc}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- ─── Processus ─────────────────────────────────────────────────────── -->
+    <section id="processus" class="process-section">
+      <div class="section-inner">
+        <div class="gsap-section section-head">
+          <h2 class="section-label">{h.processLabel}</h2>
+          <p class="section-title">{h.processTitle.map((l, i) => (<>{i > 0 && <br />}{l}</>))}</p>
+        </div>
+        <div class="gsap-section process-row">
+          {h.process.map((p, i) => (
+            <div class="process-step">
+              <span class="process-num">{pad(i + 1)}</span>
+              <h3 class="process-name">{p.name}</h3>
+              <p class="process-desc">{p.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Réalisations — galerie horizontale épinglée ───────────────────── -->
+    <section id="realisations" class="gallery-section">
+      <div class="gallery-pin">
+        <div class="gallery-eyebrow">
+          <h2 class="gallery-label">{h.galleryLabel}</h2>
+          <span class="gallery-count">{h.galleryCount}</span>
+        </div>
+        <div class="gallery-track">
+          {galleryImgs.map((g, i) => (
+            <div class={`gsap-gallery-item gallery-frame${g.wide ? ' gallery-frame--wide' : ''}`}>
+              <img src={g.src} alt={h.gallery[i].alt} loading="lazy" decoding="async" />
+              <div class="gallery-meta"><span class="gallery-meta-cat">{h.gallery[i].cat}</span><span class="gallery-meta-num">{pad3(i + 1)}</span></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Pourquoi ISO NORD ─────────────────────────────────────────────── -->
+    <section id="pourquoi" class="why-section">
+      <div class="section-inner">
+        <div class="gsap-section section-head">
+          <h2 class="section-label">{h.whyLabel}</h2>
+        </div>
+        <p class="why-statement">{h.whyStatement}</p>
+        <div class="gsap-section why-grid">
+          {h.why.map((w) => (
+            <div class="why-item">
+              <h3 class="why-item-title">{w.title}</h3>
+              <p class="why-item-desc">{w.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── Tarifs / forfaits ─────────────────────────────────────────────── -->
+    <section id="tarifs" class="pricing-section">
+      <div class="section-inner">
+        <div class="gsap-section section-head">
+          <h2 class="section-label">{h.pricingLabel}</h2>
+          <p class="section-title">{h.pricingTitle.map((l, i) => (<>{i > 0 && <br />}{l}</>))}</p>
+        </div>
+        <div class="gsap-section pricing-grid">
+          {h.pricing.map((plan, i) => (
+            <div class={`pricing-plan${i === 1 ? ' pricing-plan--featured' : ''}`}>
+              <h3 class="pricing-name">{plan.name}{i === 1 && <span class="pricing-badge">{h.pricingPopular}</span>}</h3>
+              <p class="pricing-price">{plan.price}<span class="pricing-per">{plan.per}</span></p>
+              <p class="pricing-desc">{plan.desc}</p>
+              <ul class="pricing-list">
+                {plan.list.map((li) => <li>{li}</li>)}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <p class="gsap-section pricing-note">{h.pricingNote}</p>
+      </div>
+    </section>
+
+    <!-- ─── Labs — projets logiciels ──────────────────────────────────────── -->
+    <section id="labs" class="labs-section">
+      <div class="section-inner">
+        <div class="gsap-section labs-head section-head">
+          <h2 class="section-label">{h.labsLabel}</h2>
+          <p class="labs-intro">{h.labsIntro}</p>
+        </div>
+        <a href={pathFor('labs', lang)} class="gsap-section labs-teaser" aria-label={h.labsAria}>
+          <ul class="labs-teaser__list">
+            {h.labsList.map((li) => <li>{li}</li>)}
+          </ul>
+          <span class="labs-teaser__cta">
+            <span class="labs-teaser__text">{h.labsCta}</span>
+            <span class="labs-teaser__arrow" aria-hidden="true">→</span>
+          </span>
+        </a>
+      </div>
+    </section>
+
+    <!-- ─── CTA final ─────────────────────────────────────────────────────── -->
+    <section id="contact" class="contact-section">
+      <div class="contact-backdrop" aria-hidden="true">
+        <img src="/assets/hero-camera-poster.jpg" alt="" loading="lazy" decoding="async" />
+      </div>
+      <div class="section-inner">
+        <div class="gsap-section contact-block">
+          <p class="section-label">{h.contactLabel}</p>
+          <h2 class="contact-cta">{h.contactCta.map((l, i) => (<>{i > 0 && <br />}{l}</>))}</h2>
+          <div class="contact-links">
+            <a href="mailto:info@theo-picture.com" class="contact-link">info@theo-picture.com</a>
+            <a href="https://instagram.com/iso_nord" target="_blank" rel="noopener noreferrer" class="contact-link" aria-label={igAria}>@iso_nord</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    </main>
+
+    <!-- ─── Footer ────────────────────────────────────────────────────────── -->
+    <footer class="site-footer">
+      <div class="section-inner">
+        <div class="footer-grid">
+          <span class="footer-wordmark">ISO Nord</span>
+          <nav class="footer-nav" aria-label={footerAria}>
+            {h.footerNav.map((f) => (
+              <a href={'page' in f && f.page ? pathFor(f.page as any, lang) : f.href}>{f.label}</a>
+            ))}
+          </nav>
+          <div class="footer-meta">
+            <a href="mailto:info@theo-picture.com">info@theo-picture.com</a>
+            <a href="https://instagram.com/iso_nord" target="_blank" rel="noopener noreferrer" aria-label={igAria}>@iso_nord</a>
+            <span>{c.footerLoc}</span>
+            <span>{c.copyright}</span>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+    <div class="preloader" aria-hidden="true">
+      <span class="preloader-iso">ISO</span>
+      <span class="preloader-nord">NORD</span>
+      <span class="preloader-num">000</span>
+    </div>
+
+    <div class="cursor-dot" aria-hidden="true"></div>
+    <div class="cursor-ring" aria-hidden="true"></div>
+    <div class="cursor-label" aria-hidden="true">{c.cursorLabel}</div>
+
+    <div class="progress-bar" aria-hidden="true"></div>
+
+    <script src="../../scripts/animations.js"></script>
+
+    <script>
+      import Intercom from '@intercom/messenger-js-sdk';
+      Intercom({ app_id: 'qegg0d67' });
+    </script>
+
+  </body>
+</html>

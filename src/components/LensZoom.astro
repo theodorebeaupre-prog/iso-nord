@@ -1,0 +1,177 @@
+---
+/**
+ * LensZoom — loupe d'inspection au survol.
+ * Adapté de 21st.dev → Aceternity UI "Lens"
+ * (https://21st.dev/aceternity/lens/default), porté en Astro + GSAP.
+ *
+ * Une lentille circulaire suit le curseur et révèle l'image à 2.4× —
+ * démonstration directe du piqué des fichiers livrés.
+ * Désactivé sur pointeurs tactiles (l'image reste affichée telle quelle).
+ */
+interface Props {
+  image?: string;
+  alt?: string;
+}
+
+const {
+  image = '/assets/gallery/20260510-_DSC9808.jpeg',
+  alt = 'Photographie de faune — détail inspectable à la loupe',
+} = Astro.props;
+---
+
+<section id="detail" class="lens-section">
+  <div class="section-inner">
+    <div class="lens-grid">
+
+      <div class="gsap-section lens-copy">
+        <h2 class="section-label">Le détail</h2>
+        <p class="lens-text">
+          La netteté ne se devine pas — elle se vérifie.
+          Survolez l'image pour inspecter le piqué, à même le fichier final.
+        </p>
+        <p class="lens-spec" aria-hidden="true">Loupe 2.4× &nbsp;·&nbsp; fichier non recadré</p>
+      </div>
+
+      <figure class="gsap-section lens-frame" data-lens>
+        <img class="lens-base" src={image} alt={alt} loading="lazy" decoding="async" />
+        <div class="lens-glass" data-lens-glass aria-hidden="true">
+          <img class="lens-zoom" data-lens-zoom src={image} alt="" loading="lazy" decoding="async" />
+        </div>
+      </figure>
+
+    </div>
+  </div>
+</section>
+
+<style>
+  .lens-section {
+    padding: var(--s-4xl) 0;
+  }
+
+  .lens-grid {
+    display: grid;
+    grid-template-columns: minmax(16rem, 1fr) minmax(0, 1.6fr);
+    gap: clamp(var(--s-xl), 5vw, var(--s-4xl));
+    align-items: end;
+  }
+
+  @media (max-width: 900px) {
+    .lens-grid { grid-template-columns: 1fr; align-items: start; }
+  }
+
+  .lens-text {
+    font-weight: 200;
+    font-size: clamp(1.05rem, 1.8vw, 1.35rem);
+    line-height: 1.55;
+    color: var(--muted);
+    margin-top: var(--s-lg);
+    max-width: 32ch;
+  }
+
+  .lens-spec {
+    margin-top: var(--s-xl);
+    font-family: var(--font-label);
+    font-size: 0.78rem;
+    font-weight: 300;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  .lens-frame {
+    position: relative;
+    aspect-ratio: 3 / 2;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  @media (pointer: fine) {
+    .lens-frame { cursor: crosshair; }
+  }
+
+  .lens-base {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .lens-glass {
+    --lens-size: 190px;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--lens-size);
+    height: var(--lens-size);
+    border-radius: 50%;
+    overflow: hidden;
+    border: 1px solid oklch(97% 0.003 130 / 0.4);
+    box-shadow:
+      0 0 0 1px oklch(5.1% 0.005 130 / 0.6),
+      0 18px 50px oklch(5.1% 0.005 130 / 0.55);
+    opacity: 0;
+    transform: scale(0.8);
+    pointer-events: none;
+    will-change: transform;
+  }
+
+  .lens-zoom {
+    position: absolute;
+    top: 0;
+    left: 0;
+    max-width: none;
+    will-change: transform;
+  }
+</style>
+
+<script>
+  import gsap from 'gsap';
+
+  const frame = document.querySelector('[data-lens]');
+
+  if (frame && window.matchMedia('(pointer: fine)').matches) {
+    const glass   = frame.querySelector('[data-lens-glass]');
+    const zoomImg = frame.querySelector('[data-lens-zoom]');
+
+    const ZOOM = 2.4;
+    const size = () => glass.offsetWidth;
+
+    const proxy = { x: 0, y: 0 };
+
+    const render = () => {
+      const half = size() / 2;
+      gsap.set(glass,   { x: proxy.x - half, y: proxy.y - half });
+      gsap.set(zoomImg, { x: -(proxy.x * ZOOM - half), y: -(proxy.y * ZOOM - half) });
+    };
+
+    const localPoint = e => {
+      const r = frame.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top, r };
+    };
+
+    frame.addEventListener('pointerenter', e => {
+      const { x, y, r } = localPoint(e);
+      zoomImg.style.width  = `${r.width * ZOOM}px`;
+      zoomImg.style.height = `${r.height * ZOOM}px`;
+      proxy.x = x;
+      proxy.y = y;
+      render();
+      gsap.to(glass, { opacity: 1, scale: 1, duration: 0.4, ease: 'power3.out', overwrite: 'auto' });
+    });
+
+    frame.addEventListener('pointermove', e => {
+      const { x, y } = localPoint(e);
+      gsap.to(proxy, {
+        x, y,
+        duration: 0.3,
+        ease: 'power3.out',
+        onUpdate: render,
+        overwrite: true,
+      });
+    });
+
+    frame.addEventListener('pointerleave', () => {
+      gsap.to(glass, { opacity: 0, scale: 0.8, duration: 0.3, ease: 'power2.in', overwrite: 'auto' });
+    });
+  }
+</script>

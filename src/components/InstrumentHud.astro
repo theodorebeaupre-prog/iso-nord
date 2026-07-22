@@ -1,0 +1,167 @@
+---
+/**
+ * InstrumentHud — cadre « instrument » persistant, signature du site.
+ *
+ * Encadre le viewport comme un HUD de drone / une ardoise de tournage :
+ * repères d'angle, timecode qui tourne, coordonnées, index d'image lié au
+ * scroll, statut de certification. Purement décoratif (aria-hidden,
+ * pointer-events: none), en lime uniquement sur les valeurs « actives ».
+ *
+ * Respecte prefers-reduced-motion : le timecode se fige, l'index reste
+ * piloté par le scroll (pas d'animation continue).
+ *
+ * Props : light — variante sombre-sur-clair (page /labs) ; lang — libellés.
+ */
+import type { Lang } from '../i18n/ui';
+import { ui } from '../i18n/ui';
+
+interface Props {
+  light?: boolean;
+  lang?: Lang;
+}
+const { light = false, lang = 'fr' } = Astro.props;
+const c = ui[lang].common;
+---
+
+<div class={`hud${light ? ' hud--light' : ''}`} aria-hidden="true">
+  <span class="hud__tick hud__tick--tl"></span>
+  <span class="hud__tick hud__tick--tr"></span>
+  <span class="hud__tick hud__tick--bl"></span>
+  <span class="hud__tick hud__tick--br"></span>
+
+  <div class="hud__read hud__read--tl">
+    <span class="hud__rec" data-hud-rec>● REC</span>
+    <span class="hud__tc" data-hud-tc>00:00:00:00</span>
+  </div>
+
+  <div class="hud__read hud__read--tr">
+    <span>46°48′N&nbsp;&nbsp;71°14′W</span>
+    <span class="hud__dim">Québec · CA</span>
+  </div>
+
+  <div class="hud__read hud__read--bl">
+    <span class="hud__dim">Frame</span>
+    <span class="hud__frm" data-hud-frm>0000</span>
+  </div>
+
+  <div class="hud__read hud__read--br">
+    <span class="hud__dim">{c.hudStatus}</span>
+    <span>{c.hudCert}</span>
+  </div>
+</div>
+
+<style>
+  .hud {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    pointer-events: none;
+    font-family: var(--font-label);
+    font-size: 0.56rem;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--dim);
+    --hud-pad: clamp(1rem, 3.2vw, 2.4rem);
+  }
+
+  /* Repères d'angle — courtes équerres */
+  .hud__tick {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border: 0 solid var(--border-control);
+  }
+  .hud__tick--tl { top: var(--hud-pad); left: var(--hud-pad); border-top-width: 1px; border-left-width: 1px; }
+  .hud__tick--tr { top: var(--hud-pad); right: var(--hud-pad); border-top-width: 1px; border-right-width: 1px; }
+  .hud__tick--bl { bottom: var(--hud-pad); left: var(--hud-pad); border-bottom-width: 1px; border-left-width: 1px; }
+  .hud__tick--br { bottom: var(--hud-pad); right: var(--hud-pad); border-bottom-width: 1px; border-right-width: 1px; }
+
+  .hud__read {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    gap: 0.28rem;
+    line-height: 1.3;
+  }
+  .hud__read--tl { top: calc(var(--hud-pad) + 2.6rem); left: calc(var(--hud-pad) + 1.4rem); }
+  .hud__read--tr { top: calc(var(--hud-pad) + 2.6rem); right: calc(var(--hud-pad) + 1.4rem); text-align: right; align-items: flex-end; }
+  .hud__read--bl { bottom: var(--hud-pad); left: calc(var(--hud-pad) + 1.4rem); }
+  .hud__read--br { bottom: var(--hud-pad); right: calc(var(--hud-pad) + 1.4rem); text-align: right; align-items: flex-end; }
+
+  .hud__dim { color: var(--border-control); }
+
+  .hud__rec {
+    color: var(--accent);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+  }
+  .hud__rec.is-blink { opacity: 0.35; }
+
+  .hud__tc,
+  .hud__frm {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.18em;
+  }
+  .hud__frm { color: var(--accent); }
+
+  /* Variante claire — page Labs (sombre sur clair, accent bleu royal) */
+  .hud--light { color: #5a6b96; }
+  .hud--light .hud__dim { color: #9aa8c8; }
+  .hud--light .hud__tick { border-color: #b9c6de; }
+  .hud--light .hud__tc { color: #0A1F5C; }
+  .hud--light .hud__rec,
+  .hud--light .hud__frm { color: #2B4FC4; }
+
+  /* Sur petits écrans : on garde les repères, on masque les lectures latérales
+     du bas pour ne pas encombrer le contenu. */
+  @media (max-width: 640px) {
+    .hud__read--bl,
+    .hud__read--br { display: none; }
+    .hud { font-size: 0.5rem; }
+  }
+</style>
+
+<script>
+  const tc = document.querySelector('[data-hud-tc]');
+  const frm = document.querySelector('[data-hud-frm]');
+  const rec = document.querySelector('[data-hud-rec]');
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const FPS = 24;
+
+  const pad = (n: number, w = 2) => String(Math.floor(n)).padStart(w, '0');
+
+  // Timecode HH:MM:SS:FF — démarre à l'ouverture de la page.
+  if (tc && !reduce) {
+    const start = performance.now();
+    let lastBlink = 0;
+    const tick = (now: number) => {
+      const elapsed = (now - start) / 1000;
+      const f = Math.floor(elapsed * FPS) % FPS;
+      const s = Math.floor(elapsed) % 60;
+      const m = Math.floor(elapsed / 60) % 60;
+      const h = Math.floor(elapsed / 3600) % 24;
+      tc.textContent = `${pad(h)}:${pad(m)}:${pad(s)}:${pad(f)}`;
+      if (rec && now - lastBlink > 900) {
+        rec.classList.toggle('is-blink');
+        lastBlink = now;
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+
+  // Index d'image piloté par le scroll — la page devient une pellicule.
+  if (frm) {
+    const TOTAL = 999;
+    const update = () => {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      const p = max > 0 ? window.scrollY / max : 0;
+      frm.textContent = pad(p * TOTAL, 4);
+    };
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+  }
+</script>

@@ -1,0 +1,480 @@
+---
+import '../../styles/global.css';
+import InstrumentHud from '../InstrumentHud.astro';
+import LangSwitch from '../LangSwitch.astro';
+import { ui, type Lang } from '../../i18n/ui';
+import { pathFor, alternates, SITE } from '../../i18n/utils';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const c = ui[lang].common;
+const p = ui[lang].portfolio;
+
+const canonical = SITE + pathFor('portfolio', lang);
+const alts = alternates('portfolio');
+const ogLocale = lang === 'fr' ? 'fr_CA' : 'en_CA';
+const navAria = lang === 'fr' ? 'Navigation principale' : 'Main navigation';
+const footerAria = lang === 'fr' ? 'Navigation de pied de page' : 'Footer navigation';
+
+// slug → clé de catégorie (structure, non traduite)
+const catOf: Record<string, keyof typeof p.cats> = {
+  'skyline-quebec': 'aerial', 'chateau-frontenac': 'architecture', 'chateau-heure-bleue': 'architecture',
+  'pont-de-quebec-aerien': 'aerial', 'lys-orange': 'nature', 'fleur-violette': 'nature', 'chute-automne': 'aerial',
+  'canard': 'wildlife', 'corneille': 'wildlife', 'vieux-quebec': 'architecture', 'ciel-sur-le-fleuve': 'aerial',
+  'chateau-frontenac-aerien': 'aerial', 'pont-de-quebec-quai': 'architecture', 'polestar': 'auto',
+  'panorama-hivernal': 'landscape', 'trainees-ville': 'night', 'autoroute-nuit': 'night',
+  'ville-de-nuit-aerien': 'aerial', 'ville-heure-bleue': 'aerial',
+};
+
+type Row = { kind: 'solo' | 'solo-portrait' | 'duo' | 'trio'; ar?: string; slugs: string[] };
+const rows: Row[] = [
+  { kind: 'solo', slugs: ['skyline-quebec'] },
+  { kind: 'duo', ar: '3 / 4', slugs: ['chateau-frontenac', 'chateau-heure-bleue'] },
+  { kind: 'solo', slugs: ['pont-de-quebec-aerien'] },
+  { kind: 'duo', ar: '4 / 5', slugs: ['lys-orange', 'fleur-violette'] },
+  { kind: 'solo', slugs: ['chute-automne'] },
+  { kind: 'trio', ar: '4 / 5', slugs: ['canard', 'corneille', 'vieux-quebec'] },
+  { kind: 'solo', slugs: ['ciel-sur-le-fleuve'] },
+  { kind: 'duo', ar: '4 / 3', slugs: ['chateau-frontenac-aerien', 'pont-de-quebec-quai'] },
+  { kind: 'solo-portrait', slugs: ['polestar'] },
+  { kind: 'solo', slugs: ['panorama-hivernal'] },
+  { kind: 'duo', ar: '3 / 2', slugs: ['trainees-ville', 'autoroute-nuit'] },
+  { kind: 'solo', slugs: ['ville-de-nuit-aerien'] },
+  { kind: 'solo', slugs: ['ville-heure-bleue'] },
+];
+
+const total = rows.reduce((n, r) => n + r.slugs.length, 0);
+let counter = 0;
+const num = () => String(++counter).padStart(3, '0');
+const pad3 = (n: number) => String(n).padStart(3, '0');
+---
+
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={p.description} />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#141318" />
+    <link rel="canonical" href={canonical} />
+    {alts.map((a) => <link rel="alternate" hreflang={a.hreflang} href={a.href} />)}
+    <link rel="icon" type="image/png" sizes="512x512" href="/favicon.png" />
+    <link rel="icon" href="/favicon.ico" />
+    <title>{p.title}</title>
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ISO Nord" />
+    <meta property="og:title" content={p.title} />
+    <meta property="og:description" content={p.ogDescription} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content="https://theo-picture.com/assets/portfolio/skyline-quebec.jpeg" />
+    <meta property="og:locale" content={ogLocale} />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500&family=Archivo+Expanded:wght@200;300;500&family=Barlow+Condensed:wght@300;400&display=swap" rel="stylesheet" />
+  </head>
+
+  <body class="portfolio-page">
+
+    <a href="#pf-main" class="skip-link">{c.skipLink}</a>
+
+    <InstrumentHud lang={lang} />
+
+    <nav class="nav pf-nav" aria-label={navAria}>
+      <a href={pathFor('home', lang)} class="nav-wordmark">ISO Nord</a>
+      <span class="pf-nav__here" aria-current="page">{p.here}</span>
+      <div class="nav-links">
+        <a href={`${pathFor('home', lang)}#contact`} class="nav-contact">{c.navContact}</a>
+        <LangSwitch lang={lang} page="portfolio" />
+      </div>
+    </nav>
+
+    <main id="pf-main" tabindex="-1">
+
+      <header class="pf-hero">
+        <div class="pf-hero__inner">
+          <p class="pf-eyebrow">{p.eyebrow}</p>
+          <h1 class="pf-title">{p.titleLines.map((line, i) => (<>{i > 0 && <br />}{line}</>))}</h1>
+          <p class="pf-lede">{p.lede}</p>
+          <p class="pf-count">{pad3(total)} {p.imagesLabel}</p>
+        </div>
+      </header>
+
+      <section class="pf-reel" aria-label={p.galleryAria}>
+        {rows.map((row) => (
+          <div class={`pf-row pf-row--${row.kind}`}>
+            {row.slugs.map((slug) => {
+              const alt = p.alts[slug as keyof typeof p.alts];
+              const cat = p.cats[catOf[slug]];
+              const n = num();
+              return (
+                <button
+                  type="button"
+                  class="pf-frame"
+                  style={row.ar ? `--ar:${row.ar}` : undefined}
+                  aria-label={`${lang === 'fr' ? 'Agrandir' : 'Enlarge'} — ${alt}`}
+                  data-slug={slug}
+                >
+                  <img
+                    src={`/assets/portfolio/${slug}.jpeg`}
+                    alt={alt}
+                    loading="lazy"
+                    decoding="async"
+                    data-cat={cat}
+                    data-num={n}
+                  />
+                  <span class="pf-meta">
+                    <span class="pf-meta__cat">{cat}</span>
+                    <span class="pf-meta__num">{n}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </section>
+
+      <section class="pf-cta">
+        <p class="pf-cta__eyebrow">{p.ctaEyebrow}</p>
+        <a href={`${pathFor('home', lang)}#contact`} class="pf-cta__link">{p.ctaLink} <span aria-hidden="true">→</span></a>
+      </section>
+    </main>
+
+    <footer class="pf-footer">
+      <div class="pf-footer__row">
+        <span class="pf-footer__mark">ISO Nord</span>
+        <nav class="pf-footer__nav" aria-label={footerAria}>
+          {p.footerNav.map((f) => (
+            <a href={'page' in f && f.page ? pathFor(f.page as any, lang) : f.href}>{f.label}</a>
+          ))}
+        </nav>
+        <div class="pf-footer__meta">
+          <a href="mailto:info@theo-picture.com">info@theo-picture.com</a>
+          <span>{c.copyright}</span>
+        </div>
+      </div>
+    </footer>
+
+    <div class="pf-lightbox" role="dialog" aria-modal="true" aria-label={lang === 'fr' ? 'Aperçu plein écran' : 'Full-screen preview'} hidden>
+      <button class="pf-lb__close" type="button" aria-label={lang === 'fr' ? 'Fermer' : 'Close'}>✕</button>
+      <button class="pf-lb__nav pf-lb__nav--prev" type="button" aria-label={lang === 'fr' ? 'Image précédente' : 'Previous image'}>←</button>
+      <figure class="pf-lb__stage">
+        <img class="pf-lb__img" src="" alt="" />
+        <figcaption class="pf-lb__meta">
+          <span class="pf-lb__cat"></span>
+          <span class="pf-lb__num"></span>
+        </figcaption>
+      </figure>
+      <button class="pf-lb__nav pf-lb__nav--next" type="button" aria-label={lang === 'fr' ? 'Image suivante' : 'Next image'}>→</button>
+    </div>
+
+    <div class="cursor-dot" aria-hidden="true"></div>
+    <div class="cursor-ring" aria-hidden="true"></div>
+    <div class="progress-bar" aria-hidden="true"></div>
+
+    <script src="../../scripts/portfolio.js"></script>
+
+    <style>
+      .portfolio-page {
+        min-height: 100%;
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font-display);
+        font-weight: 300;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .pf-nav__here {
+        font-family: var(--font-label);
+        font-size: 0.6rem;
+        letter-spacing: 0.38em;
+        text-transform: uppercase;
+        color: var(--text);
+      }
+      @media (max-width: 640px) {
+        .pf-nav__here { display: none; }
+      }
+
+      .pf-hero {
+        position: relative;
+        min-height: clamp(28rem, 82vh, 46rem);
+        display: flex;
+        align-items: flex-end;
+        padding: clamp(7rem, 14vh, 10rem) clamp(1.5rem, 6vw, 7rem) clamp(3rem, 8vh, 6rem);
+      }
+      .pf-hero__inner { max-width: 72rem; margin: 0 auto; width: 100%; }
+
+      .pf-eyebrow {
+        font-family: var(--font-label);
+        font-size: 0.72rem;
+        letter-spacing: 0.36em;
+        text-transform: uppercase;
+        color: var(--dim);
+        margin-bottom: var(--s-lg);
+      }
+      .pf-title {
+        font-family: var(--font-display);
+        font-weight: 200;
+        font-size: clamp(2.6rem, 8.5vw, 7rem);
+        letter-spacing: -0.01em;
+        line-height: 0.94;
+        color: var(--text);
+        text-wrap: balance;
+      }
+      .pf-lede {
+        margin-top: var(--s-xl);
+        max-width: 40ch;
+        font-size: clamp(0.95rem, 1.4vw, 1.15rem);
+        line-height: 1.7;
+        color: var(--muted);
+      }
+      .pf-count {
+        margin-top: var(--s-2xl);
+        font-family: var(--font-label);
+        font-size: 0.66rem;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: var(--dim);
+      }
+
+      .pf-reel {
+        max-width: 88rem;
+        margin: 0 auto;
+        padding: clamp(2rem, 6vw, 5rem) clamp(1.5rem, 6vw, 7rem) clamp(4rem, 10vw, 8rem);
+        display: flex;
+        flex-direction: column;
+        gap: clamp(1.5rem, 4vw, 3rem);
+      }
+
+      .pf-row { display: grid; gap: clamp(1rem, 2.5vw, 2rem); }
+      .pf-row--duo  { grid-template-columns: 1fr 1fr; }
+      .pf-row--trio { grid-template-columns: 1fr 1fr 1fr; }
+
+      .pf-frame {
+        position: relative;
+        display: block;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        border: 0;
+        background: var(--surface-alt);
+        overflow: hidden;
+        cursor: inherit;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .pf-frame img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.9s cubic-bezier(0.16, 1, 0.3, 1),
+                    filter 0.7s ease;
+        will-change: transform;
+      }
+      .pf-row--duo  .pf-frame,
+      .pf-row--trio .pf-frame { aspect-ratio: var(--ar, 4 / 3); }
+
+      .pf-row--solo-portrait { justify-items: center; }
+      .pf-row--solo-portrait .pf-frame { max-width: min(30rem, 100%); }
+
+      .pf-frame:hover img { transform: scale(1.035); }
+
+      .pf-meta {
+        position: absolute;
+        left: 0; right: 0; bottom: 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        padding: clamp(0.8rem, 2vw, 1.4rem);
+        font-family: var(--font-label);
+        font-size: 0.62rem;
+        letter-spacing: 0.26em;
+        text-transform: uppercase;
+        color: var(--text);
+        background: linear-gradient(to top,
+          color-mix(in oklab, #000 55%, transparent) 0%,
+          transparent 100%);
+        opacity: 0;
+        transform: translateY(6px);
+        transition: opacity 0.4s ease, transform 0.4s ease;
+        pointer-events: none;
+      }
+      .pf-frame:hover .pf-meta,
+      .pf-frame:focus-visible .pf-meta { opacity: 1; transform: translateY(0); }
+      .pf-frame:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+      .pf-meta__cat { color: var(--text); }
+      .pf-meta__num { color: var(--accent); }
+
+      @media (max-width: 720px) {
+        .pf-row--duo  { grid-template-columns: 1fr; }
+        .pf-row--trio { grid-template-columns: 1fr 1fr; }
+        .pf-row--duo .pf-frame,
+        .pf-row--trio .pf-frame { aspect-ratio: 3 / 2; }
+      }
+
+      .pf-cta {
+        max-width: 72rem;
+        margin: 0 auto;
+        padding: clamp(3rem, 9vw, 7rem) clamp(1.5rem, 6vw, 7rem);
+        text-align: center;
+        border-top: 1px solid var(--border);
+      }
+      .pf-cta__eyebrow {
+        font-family: var(--font-label);
+        font-size: 0.7rem;
+        letter-spacing: 0.32em;
+        text-transform: uppercase;
+        color: var(--dim);
+        margin-bottom: var(--s-lg);
+      }
+      .pf-cta__link {
+        font-family: var(--font-display);
+        font-weight: 200;
+        font-size: clamp(1.8rem, 5vw, 3.4rem);
+        letter-spacing: -0.01em;
+        color: var(--text);
+        transition: color 0.4s ease;
+        display: inline-flex;
+        align-items: baseline;
+        gap: 0.4em;
+      }
+      .pf-cta__link span { color: var(--accent); transition: transform 0.4s ease; display: inline-block; }
+      .pf-cta__link:hover { color: var(--accent); }
+      .pf-cta__link:hover span { transform: translateX(0.25em); }
+
+      .pf-footer {
+        border-top: 1px solid var(--border);
+        padding: clamp(2.5rem, 6vw, 4rem) clamp(1.5rem, 6vw, 7rem);
+      }
+      .pf-footer__row {
+        max-width: 88rem;
+        margin: 0 auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: var(--s-2xl);
+        flex-wrap: wrap;
+      }
+      .pf-footer__mark {
+        font-family: var(--font-label);
+        font-size: 0.66rem;
+        letter-spacing: 0.34em;
+        text-transform: uppercase;
+        color: var(--text);
+      }
+      .pf-footer__nav { display: flex; gap: clamp(1rem, 3vw, 2.2rem); flex-wrap: wrap; }
+      .pf-footer__nav a {
+        font-family: var(--font-label);
+        font-size: 0.62rem;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: var(--muted);
+        transition: color 0.3s ease;
+      }
+      .pf-footer__nav a:hover { color: var(--accent); }
+      .pf-footer__meta { display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; }
+      .pf-footer__meta a, .pf-footer__meta span {
+        font-family: var(--font-label);
+        font-size: 0.6rem;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: var(--dim);
+      }
+      .pf-footer__meta a { transition: color 0.3s ease; }
+      .pf-footer__meta a:hover { color: var(--accent); }
+      @media (max-width: 720px) {
+        .pf-footer__row { flex-direction: column; }
+        .pf-footer__meta { align-items: flex-start; }
+      }
+
+      .pf-lightbox {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: clamp(0.5rem, 2vw, 2rem);
+        padding: clamp(1rem, 4vw, 3rem);
+        background: color-mix(in oklab, #000 88%, transparent);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        opacity: 0;
+        transition: opacity 0.35s ease;
+      }
+      .pf-lightbox[hidden] { display: none; }
+      .pf-lightbox.is-open { opacity: 1; }
+
+      .pf-lb__stage {
+        margin: 0;
+        max-width: min(90vw, 82rem);
+        max-height: 88vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--s-md);
+      }
+      .pf-lb__img {
+        max-width: 100%;
+        max-height: 82vh;
+        object-fit: contain;
+        box-shadow: 0 30px 80px color-mix(in oklab, #000 60%, transparent);
+      }
+      .pf-lb__meta {
+        display: flex;
+        gap: var(--s-lg);
+        font-family: var(--font-label);
+        font-size: 0.64rem;
+        letter-spacing: 0.26em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .pf-lb__meta .pf-lb__num { color: var(--accent); }
+
+      .pf-lb__close, .pf-lb__nav {
+        border: 1px solid var(--border-control);
+        background: color-mix(in oklab, var(--bg) 60%, transparent);
+        color: var(--text);
+        font-family: var(--font-label);
+        border-radius: 50%;
+        cursor: inherit;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+        flex-shrink: 0;
+      }
+      .pf-lb__nav { width: clamp(2.6rem, 6vw, 3.4rem); height: clamp(2.6rem, 6vw, 3.4rem); font-size: 1.1rem; }
+      .pf-lb__close {
+        position: absolute;
+        top: clamp(1rem, 3vw, 2rem);
+        right: clamp(1rem, 3vw, 2rem);
+        width: 2.8rem; height: 2.8rem;
+        font-size: 0.9rem;
+      }
+      .pf-lb__close:hover, .pf-lb__nav:hover {
+        background: var(--surface);
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      @media (max-width: 640px) {
+        .pf-lb__nav { position: absolute; bottom: clamp(1rem, 4vw, 2rem); }
+        .pf-lb__nav--prev { left: clamp(1rem, 6vw, 3rem); }
+        .pf-lb__nav--next { right: clamp(1rem, 6vw, 3rem); }
+        .pf-lb__stage { max-height: 82vh; }
+      }
+
+      @media (hover: none) {
+        .pf-meta { opacity: 1; transform: none; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .pf-frame img { transition: none; }
+        .pf-meta { opacity: 1; transform: none; }
+      }
+    </style>
+  </body>
+</html>

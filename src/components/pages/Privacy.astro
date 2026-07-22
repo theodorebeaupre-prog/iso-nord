@@ -1,0 +1,136 @@
+---
+import '../../styles/global.css';
+import LangSwitch from '../LangSwitch.astro';
+import { ui, type Lang } from '../../i18n/ui';
+import { pathFor, alternates, SITE } from '../../i18n/utils';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const p = ui[lang].privacy;
+
+const canonical = SITE + pathFor('privacy', lang);
+const alts = alternates('privacy');
+const ogLocale = lang === 'fr' ? 'fr_CA' : 'en_CA';
+const backAria = lang === 'fr' ? 'Retour au site' : 'Back to site';
+---
+
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={p.description} />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#09090b" />
+    <link rel="canonical" href={canonical} />
+    {alts.map((a) => <link rel="alternate" hreflang={a.hreflang} href={a.href} />)}
+    <link rel="icon" type="image/png" sizes="512x512" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <title>{p.title}</title>
+
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="ISO Nord" />
+    <meta property="og:title" content={p.title} />
+    <meta property="og:description" content={p.ogDescription} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:locale" content={ogLocale} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400&display=swap" rel="stylesheet" />
+  </head>
+
+  <body class="bg-[#09090b] text-[#f5f5f5] min-h-screen">
+
+    <!-- Nav -->
+    <nav class="px-8 py-6 border-b border-white/5 flex items-center justify-between" aria-label={backAria}>
+      <a href={pathFor('home', lang)} class="text-[#888888] hover:text-[#f5f5f5] transition-colors text-sm tracking-widest uppercase">
+        {p.back}
+      </a>
+      <LangSwitch lang={lang} page="privacy" />
+    </nav>
+
+    <!-- Content -->
+    <main class="max-w-2xl mx-auto px-8 py-16">
+
+      <header class="mb-12">
+        <p class="text-[#c8ff00] text-xs tracking-[0.3em] uppercase mb-4">{p.eyebrow}</p>
+        <h1 class="text-4xl font-light tracking-tight mb-3">ISO NORD</h1>
+        <p class="text-[#888888] text-sm">{p.updated} <time datetime="2026-06-01">{p.updatedDate}</time></p>
+      </header>
+
+      <div class="space-y-10 text-[#f5f5f5]/80 text-sm leading-relaxed">
+
+        <section>
+          <h2 class="text-[#f5f5f5] text-base font-normal tracking-widest uppercase mb-4">{p.s1Title}</h2>
+          <p class="mb-3">{p.s1Intro}</p>
+          <ul class="space-y-2 pl-4">
+            {p.s1.map((item) => (
+              <li class="flex gap-3">
+                <span class="text-[#c8ff00] mt-0.5">·</span>
+                <span><span class="text-[#f5f5f5]">{item.k}</span>{item.v}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <div class="border-t border-white/5"></div>
+
+        <section>
+          <h2 class="text-[#f5f5f5] text-base font-normal tracking-widest uppercase mb-4">{p.s2Title}</h2>
+          <p class="mb-3">{p.s2Intro}</p>
+          <ul class="space-y-2 pl-4">
+            {p.s2.map((item) => (
+              <li class="flex gap-3"><span class="text-[#c8ff00] mt-0.5">·</span><span>{item}</span></li>
+            ))}
+          </ul>
+          <p class="mt-4">{p.s2OutroPre}<span class="text-[#f5f5f5]">{p.s2OutroStrong}</span>{p.s2OutroPost}</p>
+        </section>
+
+        <div class="border-t border-white/5"></div>
+
+        <section>
+          <h2 class="text-[#f5f5f5] text-base font-normal tracking-widest uppercase mb-4">{p.s3Title}</h2>
+          <p>{p.s3Pre}<span class="text-[#f5f5f5]">{p.s3Strong}</span>{p.s3Post}</p>
+        </section>
+
+        <div class="border-t border-white/5"></div>
+
+        <section>
+          <h2 class="text-[#f5f5f5] text-base font-normal tracking-widest uppercase mb-4">{p.s4Title}</h2>
+          <p>{p.s4Pre}<span class="text-[#f5f5f5]">{p.s4Strong}</span>{p.s4Post}</p>
+        </section>
+
+        <div class="border-t border-white/5"></div>
+
+        <section>
+          <h2 class="text-[#f5f5f5] text-base font-normal tracking-widest uppercase mb-4">{p.s5Title}</h2>
+          <p class="mb-3">{p.s5Intro}</p>
+          <ul class="space-y-2 pl-4">
+            {p.s5.map((item) => (
+              <li class="flex gap-3"><span class="text-[#c8ff00] mt-0.5">·</span><span><span class="text-[#f5f5f5]">{item.k}</span>{item.v}</span></li>
+            ))}
+          </ul>
+        </section>
+
+        <div class="border-t border-white/5"></div>
+
+        <section>
+          <h2 class="text-[#f5f5f5] text-base font-normal tracking-widest uppercase mb-4">{p.s6Title}</h2>
+          <p>{p.s6Body}</p>
+        </section>
+
+        <div class="border-t border-white/5"></div>
+
+        <footer class="pt-2">
+          <p class="text-[#888888]">
+            {p.contactName} ·
+            <a href="mailto:theodore.beaupre@icloud.com" class="text-[#f5f5f5] hover:text-[#c8ff00] transition-colors">theodore.beaupre@icloud.com</a> ·
+            <a href="https://theo-picture.com" class="text-[#f5f5f5] hover:text-[#c8ff00] transition-colors">theo-picture.com</a>
+          </p>
+        </footer>
+
+      </div>
+    </main>
+
+  </body>
+</html>
