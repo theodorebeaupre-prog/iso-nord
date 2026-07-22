@@ -92,10 +92,23 @@ export const PLACES: Labs360Place[] = [
       en: 'The estate and its arboretum, seen from above at dusk.',
     },
     credit: '',
-    x: 58, y: 38,
-    // Vrai pano drone (Patro Roc-Amadour / Limoilou, stitché des 35 segments
-    // DJI avec Hugin), servi depuis le Mac via Cloudflare Tunnel.
-    media: 'https://media.theo-picture.com/panoramas/maizerets-limoilou-2026.jpg',
+    x: 62, y: 40,
+    media: 'pano-maizerets.png',
+  },
+  {
+    id: 'patro-roc-amadour',
+    city: 'quebec',
+    type: '360',
+    name: 'Patro Roc-Amadour',
+    desc: {
+      fr: 'Le Patro et le quartier Lairet à 100 m d’altitude — le Centre Vidéotron et la skyline de Québec à l’horizon.',
+      en: 'The Patro and the Lairet neighbourhood from 100 m up — Centre Vidéotron and the Québec City skyline on the horizon.',
+    },
+    credit: '',
+    x: 52, y: 42,
+    // Vrai pano drone (28 juin 2026, GPS 46.8327 N 71.2445 W, stitché des
+    // 35 segments DJI avec Hugin), servi via Cloudflare Tunnel.
+    media: 'https://media.theo-picture.com/panoramas/patro-roc-amadour-2026.jpg',
   },
 
   // ── Montréal ──────────────────────────────────────────────────────────────
