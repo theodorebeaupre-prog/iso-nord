@@ -8,6 +8,7 @@ export const SITE = 'https://theo-picture.com';
 export const PAGES = {
   home:      { fr: '/',                en: '/en/' },
   labs:      { fr: '/labs',            en: '/en/labs' },
+  labs360:   { fr: '/labs/360',        en: '/en/labs/360' },
   portfolio: { fr: '/portfolio',       en: '/en/portfolio' },
   privacy:   { fr: '/privacy-isonord', en: '/en/privacy-isonord' },
 } as const;
