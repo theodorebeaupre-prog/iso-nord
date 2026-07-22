@@ -93,7 +93,7 @@ export const PLACES: Labs360Place[] = [
     },
     credit: '',
     x: 62, y: 40,
-    media: 'pano-maizerets.png',
+    media: "https://media.theo-picture.com/panoramas/maizerets-2025-10.jpg",
   },
   {
     id: 'patro-roc-amadour',
@@ -153,4 +153,5 @@ export const PLACES: Labs360Place[] = [
     media: '/assets/hero-camera.mp4',
     poster: '/assets/portfolio/ville-heure-bleue.jpeg',
   },
+  // iso360:insert — les nouveaux lieux publiés par `iso360` s'insèrent au-dessus de cette ligne
 ];
