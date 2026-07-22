@@ -12,11 +12,10 @@
 
 import crypto from 'node:crypto';
 
-const ALLOWED_ORIGINS = [
-  'https://theo-picture.com',
-  'https://www.theo-picture.com',
-  'http://localhost:4321',
-];
+// Hôtes autorisés à obtenir un token. On dérive l'origine du header `Host`
+// (toujours présent, même sur un GET same-origin où Safari n'envoie PAS `Origin`)
+// → le token correspond à la page, que ce soit theo-picture.com OU www.
+const ALLOWED_HOSTS = ['theo-picture.com', 'www.theo-picture.com', 'localhost:4321'];
 
 const b64url = (buf) =>
   Buffer.from(buf).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
@@ -30,9 +29,10 @@ export default function handler(req, res) {
     return;
   }
 
-  // Origine appelante → restreint le token si elle est dans l'allowlist.
-  const reqOrigin = req.headers.origin || '';
-  const origin = ALLOWED_ORIGINS.includes(reqOrigin) ? reqOrigin : 'https://theo-picture.com';
+  // Origine dérivée du Host de la page (couvre www / non-www / localhost).
+  const host = (req.headers.host || '').toLowerCase();
+  const proto = host.startsWith('localhost') ? 'http' : 'https';
+  const origin = ALLOWED_HOSTS.includes(host) ? `${proto}://${host}` : 'https://theo-picture.com';
 
   const now = Math.floor(Date.now() / 1000);
   const header = { alg: 'ES256', kid: keyId, typ: 'JWT' };
