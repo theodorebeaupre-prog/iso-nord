@@ -52,7 +52,8 @@ export const PLACES: Labs360Place[] = [
     },
     credit: '',
     x: 62, y: 55,
-    media: 'pano-vieux-quebec.png',
+    // Servi depuis le Mac via Cloudflare Tunnel (SSD 1/iso-nord-media)
+    media: 'https://media.theo-picture.com/panoramas/pano-vieux-quebec-demo.jpg',
   },
   {
     id: 'chute-montmorency',
