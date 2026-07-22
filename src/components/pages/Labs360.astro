@@ -1,0 +1,512 @@
+---
+/**
+ * Labs — « Québec en 360 » (labs-360-map).
+ *
+ * Carte stylisée (pas de vraie API carte) : grille SVG subtile, pins en
+ * coordonnées %, sélecteur Québec/Montréal. Un pin ouvre le modal viewer —
+ * panorama équirectangulaire (Pannellum, chargé lazy par labs360.js) ou clip
+ * vidéo. Les données vivent dans src/data/labs360.ts.
+ */
+import '../../styles/global.css';
+import InstrumentHud from '../InstrumentHud.astro';
+import LangSwitch from '../LangSwitch.astro';
+import { ui, type Lang } from '../../i18n/ui';
+import { pathFor, alternates, SITE } from '../../i18n/utils';
+import { PLACES, mediaUrl, type City } from '../../data/labs360';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const c = ui[lang].common;
+const l = ui[lang].labs360;
+
+const canonical = SITE + pathFor('labs360', lang);
+const alts = alternates('labs360');
+const ogLocale = lang === 'fr' ? 'fr_CA' : 'en_CA';
+const navAria = lang === 'fr' ? 'Navigation principale' : 'Main navigation';
+const pad = (n: number) => String(n).padStart(2, '0');
+
+const CITIES: City[] = ['quebec', 'montreal'];
+const byCity = (city: City) => PLACES.filter((p) => p.city === city);
+
+/* Données runtime pour labs360.js — médias résolus, description de la langue. */
+const runtime = {
+  lang,
+  dragHint: l.dragHint,
+  mediaSoon: l.mediaSoon,
+  creditPrefix: l.creditPrefix,
+  places: PLACES.map((p) => ({
+    id: p.id,
+    type: p.type,
+    name: p.name,
+    desc: p.desc[lang],
+    credit: p.credit,
+    media: mediaUrl(p.media),
+    poster: p.poster ? mediaUrl(p.poster) : '',
+  })),
+};
+---
+
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={l.description} />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#141318" />
+    <link rel="canonical" href={canonical} />
+    {alts.map((a) => <link rel="alternate" hreflang={a.hreflang} href={a.href} />)}
+    <link rel="icon" type="image/png" sizes="512x512" href="/favicon.png" />
+    <link rel="icon" href="/favicon.ico" />
+    <title>{l.title}</title>
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="ISO Nord" />
+    <meta property="og:title" content={l.title} />
+    <meta property="og:description" content={l.ogDescription} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:locale" content={ogLocale} />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500&family=Archivo+Expanded:wght@200;300;500&family=Barlow+Condensed:wght@300;400&display=swap" rel="stylesheet" />
+  </head>
+
+  <body class="l360-page">
+
+    <a href="#l360-main" class="skip-link">{c.skipLink}</a>
+
+    <InstrumentHud lang={lang} />
+
+    <nav class="l360-nav" aria-label={navAria}>
+      <a href={pathFor('home', lang)} class="l360-nav__home">ISO Nord</a>
+      <div class="l360-nav__links">
+        <a href={pathFor('labs', lang)} class="l360-nav__link">{l.backToLabs}</a>
+        <a href={pathFor('portfolio', lang)} class="l360-nav__link">{c.navPortfolio}</a>
+        <LangSwitch lang={lang} page="labs360" class="l360-nav__link" />
+      </div>
+    </nav>
+
+    <main id="l360-main" tabindex="-1">
+
+      <header class="l360-hero">
+        <div class="l360-inner">
+          <p class="l360-eyebrow">{l.eyebrow}</p>
+          <h1 class="l360-title">{l.titleLines.map((line, i) => (<>{i > 0 && <br />}{line}</>))}</h1>
+          <p class="l360-lede">{l.lede}</p>
+        </div>
+      </header>
+
+      <section class="l360-map-section">
+        <div class="l360-inner">
+
+          <!-- Sélecteur de ville -->
+          <div class="l360-cities" role="group" aria-label={l.cityAria}>
+            {CITIES.map((city, i) => (
+              <button
+                type="button"
+                class="l360-city"
+                data-city-btn={city}
+                aria-pressed={i === 0 ? 'true' : 'false'}
+              >{l.cities[city]}</button>
+            ))}
+          </div>
+
+          <!-- Carte stylisée : grille + pins en % -->
+          <div class="l360-map" role="region" aria-label={l.mapAria}>
+            <svg class="l360-grid" aria-hidden="true" preserveAspectRatio="none" viewBox="0 0 100 100">
+              {Array.from({ length: 9 }, (_, i) => (
+                <line x1={(i + 1) * 10} y1="0" x2={(i + 1) * 10} y2="100" />
+              ))}
+              {Array.from({ length: 9 }, (_, i) => (
+                <line x1="0" y1={(i + 1) * 10} x2="100" y2={(i + 1) * 10} />
+              ))}
+            </svg>
+            <span class="l360-coord l360-coord--tl" aria-hidden="true">46°48′N</span>
+            <span class="l360-coord l360-coord--br" aria-hidden="true">71°14′W</span>
+
+            {CITIES.map((city, ci) => (
+              <div class="l360-pins" data-city={city} hidden={ci !== 0}>
+                {byCity(city).map((p) => (
+                  <button
+                    type="button"
+                    class="l360-pin"
+                    data-place-id={p.id}
+                    style={`left:${p.x}%; top:${p.y}%;`}
+                    aria-haspopup="dialog"
+                  >
+                    <span class="l360-pin__ring" aria-hidden="true"></span>
+                    <span class="l360-pin__dot" aria-hidden="true"></span>
+                    <span class="l360-pin__label">
+                      {p.name}
+                      <em class="l360-pin__badge">{p.type === '360' ? l.badge360 : l.badgeVideo}</em>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+
+          <!-- Légende — mêmes lieux, tapables (mobile d'abord) -->
+          {CITIES.map((city, ci) => (
+            <ol class="l360-legend" data-legend-city={city} aria-label={l.legendAria} hidden={ci !== 0}>
+              {byCity(city).map((p, i) => (
+                <li>
+                  <button type="button" class="l360-legend__item" data-place-id={p.id} aria-haspopup="dialog">
+                    <span class="l360-legend__num">{pad(i + 1)}</span>
+                    <span class="l360-legend__name">{p.name}</span>
+                    <em class="l360-legend__badge">{p.type === '360' ? l.badge360 : l.badgeVideo}</em>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          ))}
+
+        </div>
+      </section>
+    </main>
+
+    <!-- Modal viewer — un seul overlay réutilisé pour 360 et vidéo -->
+    <div class="l360-modal" id="l360-modal" role="dialog" aria-modal="true" aria-labelledby="l360-title" hidden>
+      <div class="l360-modal__backdrop" data-modal-close></div>
+      <div class="l360-modal__panel">
+        <button type="button" class="l360-modal__close" data-modal-close aria-label={l.close}>×</button>
+        <div class="l360-modal__media" id="l360-media"></div>
+        <p class="l360-modal__hint" hidden>{l.dragHint}</p>
+        <p class="l360-modal__fallback" hidden>{l.mediaSoon}</p>
+        <div class="l360-modal__info">
+          <h2 class="l360-modal__name" id="l360-title"></h2>
+          <p class="l360-modal__desc"></p>
+          <p class="l360-modal__credit"></p>
+        </div>
+      </div>
+    </div>
+
+    <footer class="l360-footer">
+      <div class="l360-inner l360-footer__row">
+        <span class="l360-footer__mark">ISO Nord</span>
+        <div class="l360-footer__meta">
+          <a href={pathFor('labs', lang)}>{l.backToLabs}</a>
+          <a href={pathFor('home', lang)}>{l.footerBack}</a>
+          <span>{c.copyright}</span>
+        </div>
+      </div>
+    </footer>
+
+    <div class="cursor-dot" aria-hidden="true"></div>
+    <div class="cursor-ring" aria-hidden="true"></div>
+    <div class="progress-bar" aria-hidden="true"></div>
+
+    <script type="application/json" id="l360-data" set:html={JSON.stringify(runtime)} />
+    <script src="../../scripts/labs360.js"></script>
+
+    <style>
+      /* Page sombre — tokens globaux du site (bg #141318, accent lime). */
+      .l360-page { background: var(--bg); color: var(--text); min-height: 100%; }
+
+      .l360-inner {
+        max-width: 72rem;
+        margin: 0 auto;
+        padding: 0 clamp(1.25rem, 5vw, 6rem);
+      }
+
+      /* ── Nav (motif labs-nav, en sombre) ── */
+      .l360-nav {
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        z-index: 3;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: clamp(1.4rem, 3vw, 2.2rem) clamp(1.25rem, 5vw, 6rem);
+      }
+      .l360-nav__home, .l360-nav__link {
+        font-family: var(--font-label);
+        font-size: 0.66rem;
+        letter-spacing: 0.34em;
+        text-transform: uppercase;
+        color: var(--text);
+        transition: color 0.3s ease;
+      }
+      .l360-nav__link { color: var(--muted); }
+      .l360-nav__links { display: flex; align-items: center; gap: clamp(1.1rem, 3vw, 2rem); }
+      .l360-nav__home:hover, .l360-nav__link:hover { color: var(--accent); }
+
+      /* ── Hero ── */
+      .l360-hero {
+        padding: clamp(7rem, 18vh, 11rem) 0 clamp(2.5rem, 6vw, 4rem);
+      }
+      .l360-eyebrow {
+        font-family: var(--font-label);
+        font-size: 0.72rem;
+        letter-spacing: 0.36em;
+        text-transform: uppercase;
+        color: var(--dim);
+        margin-bottom: var(--s-lg);
+      }
+      .l360-title {
+        font-family: var(--font-display);
+        font-weight: 200;
+        font-size: clamp(2.6rem, 8vw, 6.2rem);
+        text-transform: uppercase;
+        line-height: 0.94;
+        text-wrap: balance;
+      }
+      .l360-lede {
+        margin-top: var(--s-xl);
+        max-width: 40ch;
+        font-size: clamp(0.95rem, 1.4vw, 1.1rem);
+        line-height: 1.7;
+        color: var(--muted);
+      }
+
+      /* ── Sélecteur de ville ── */
+      .l360-cities { display: flex; gap: var(--s-xl); margin-bottom: var(--s-lg); }
+      .l360-city {
+        appearance: none;
+        background: none;
+        border: 0;
+        padding: 0.5rem 0;
+        cursor: pointer;
+        font-family: var(--font-label);
+        font-size: clamp(0.95rem, 2vw, 1.15rem);
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: var(--dim);
+        border-bottom: 1px solid transparent;
+        transition: color 0.3s ease, border-color 0.3s ease;
+      }
+      .l360-city:hover { color: var(--text); }
+      .l360-city[aria-pressed='true'] { color: var(--accent); border-color: var(--accent); }
+
+      /* ── Carte ── */
+      .l360-map {
+        position: relative;
+        aspect-ratio: 4 / 5;               /* mobile-first : carte haute */
+        background:
+          radial-gradient(120% 90% at 30% 20%, #1a1920 0%, var(--surface) 55%, #121117 100%);
+        border: 1px solid var(--border);
+        overflow: hidden;
+      }
+      .l360-map::after {                    /* grain du site */
+        content: '';
+        position: absolute; inset: 0;
+        background: var(--grain);
+        opacity: 0.05;
+        pointer-events: none;
+      }
+      @media (min-width: 768px) { .l360-map { aspect-ratio: 16 / 10; } }
+
+      .l360-grid { position: absolute; inset: 0; width: 100%; height: 100%; }
+      .l360-grid line { stroke: var(--border); stroke-width: 0.15; }
+
+      .l360-coord {
+        position: absolute;
+        font-family: var(--font-label);
+        font-size: 0.6rem;
+        letter-spacing: 0.24em;
+        color: var(--dim);
+      }
+      .l360-coord--tl { top: 0.8rem; left: 1rem; }
+      .l360-coord--br { bottom: 0.8rem; right: 1rem; }
+
+      /* ── Pins ── */
+      .l360-pins { position: absolute; inset: 0; }
+      .l360-pin {
+        appearance: none; background: none; border: 0; cursor: pointer;
+        position: absolute;
+        width: 44px; height: 44px;          /* cible tactile ≥ 44px */
+        transform: translate(-50%, -50%);
+        display: grid; place-items: center;
+      }
+      .l360-pin__dot {
+        grid-area: 1 / 1;
+        width: 9px; height: 9px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 12px color-mix(in oklab, var(--accent) 60%, transparent);
+      }
+      .l360-pin__ring {
+        grid-area: 1 / 1;
+        width: 26px; height: 26px;
+        border-radius: 50%;
+        border: 1px solid color-mix(in oklab, var(--accent) 55%, transparent);
+        animation: l360-pulse 2.6s ease-out infinite;
+      }
+      @keyframes l360-pulse {
+        0% { transform: scale(0.6); opacity: 0.9; }
+        70%, 100% { transform: scale(1.5); opacity: 0; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .l360-pin__ring { animation: none; opacity: 0.5; }
+      }
+      .l360-pin__label {
+        position: absolute;
+        bottom: calc(100% - 2px);
+        left: 50%;
+        transform: translateX(-50%);
+        white-space: nowrap;
+        font-family: var(--font-label);
+        font-size: 0.66rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--text);
+        background: color-mix(in oklab, var(--bg) 82%, transparent);
+        border: 1px solid var(--border);
+        padding: 0.3rem 0.55rem;
+        opacity: 0;
+        transition: opacity 0.25s ease;
+        pointer-events: none;
+      }
+      .l360-pin:hover .l360-pin__label,
+      .l360-pin:focus-visible .l360-pin__label { opacity: 1; }
+      .l360-pin__badge, .l360-legend__badge {
+        font-style: normal;
+        color: var(--accent);
+        margin-left: 0.5em;
+      }
+
+      /* ── Légende ── */
+      .l360-legend { list-style: none; margin: var(--s-lg) 0 0; padding: 0; }
+      .l360-legend__item {
+        appearance: none; background: none; border: 0; cursor: pointer;
+        display: flex; align-items: baseline; gap: var(--s-md);
+        width: 100%;
+        padding: 0.85rem 0;
+        border-top: 1px solid var(--border);
+        font-family: var(--font-label);
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: var(--muted);
+        transition: color 0.3s ease;
+        text-align: left;
+      }
+      .l360-legend li:last-child .l360-legend__item { border-bottom: 1px solid var(--border); }
+      .l360-legend__item:hover { color: var(--text); }
+      .l360-legend__num { font-size: 0.66rem; color: var(--dim); }
+      .l360-legend__name { font-size: 0.85rem; }
+      .l360-legend__badge { font-size: 0.66rem; }
+
+      /* ── Modal ── */
+      .l360-modal { position: fixed; inset: 0; z-index: 50; }
+      .l360-modal__backdrop {
+        position: absolute; inset: 0;
+        background: color-mix(in oklab, var(--bg) 78%, black);
+        opacity: 0.92;
+      }
+      .l360-modal__panel {
+        position: absolute; inset: 0;
+        margin: auto;
+        width: min(100%, 64rem);
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        overflow: hidden;
+      }
+      @media (min-width: 768px) {
+        .l360-modal__panel { height: min(100%, 44rem); width: min(92vw, 64rem); }
+      }
+      .l360-modal__close {
+        appearance: none; background: color-mix(in oklab, var(--bg) 70%, transparent);
+        border: 1px solid var(--border-control);
+        color: var(--text);
+        position: absolute; top: 0.9rem; right: 0.9rem; z-index: 3;
+        width: 44px; height: 44px;
+        font-size: 1.4rem; line-height: 1;
+        cursor: pointer;
+        transition: color 0.3s ease, border-color 0.3s ease;
+      }
+      .l360-modal__close:hover { color: var(--accent); border-color: var(--accent); }
+
+      .l360-modal__media { position: relative; flex: 1; min-height: 0; background: #0c0b0f; }
+      .l360-modal__media :global(video),
+      .l360-modal__media :global(.pnlm-container) {
+        position: absolute !important; inset: 0;
+        width: 100% !important; height: 100% !important;
+      }
+      .l360-modal__media :global(video) { object-fit: cover; }
+
+      .l360-modal__hint {
+        position: absolute;
+        left: 50%; transform: translateX(-50%);
+        bottom: 8.5rem;
+        z-index: 2;
+        font-family: var(--font-label);
+        font-size: 0.66rem;
+        letter-spacing: 0.3em;
+        text-transform: uppercase;
+        color: var(--text);
+        background: color-mix(in oklab, var(--bg) 72%, transparent);
+        border: 1px solid var(--border);
+        padding: 0.45rem 0.8rem;
+        pointer-events: none;
+      }
+      .l360-modal__fallback {
+        position: absolute; inset: 0; z-index: 1;
+        display: grid; place-items: center;
+        font-family: var(--font-label);
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        color: var(--dim);
+      }
+
+      .l360-modal__info {
+        padding: var(--s-lg) var(--s-xl) var(--s-xl);
+        border-top: 1px solid var(--border);
+      }
+      .l360-modal__name {
+        font-family: var(--font-display);
+        font-weight: 200;
+        font-size: clamp(1.3rem, 3vw, 2rem);
+        text-transform: uppercase;
+      }
+      .l360-modal__desc {
+        margin-top: 0.5rem;
+        color: var(--muted);
+        font-size: 0.92rem;
+        line-height: 1.6;
+        max-width: 60ch;
+      }
+      .l360-modal__credit {
+        margin-top: 0.6rem;
+        font-family: var(--font-label);
+        font-size: 0.66rem;
+        letter-spacing: 0.26em;
+        text-transform: uppercase;
+        color: var(--dim);
+      }
+      .l360-modal__credit:empty { display: none; }
+
+      /* ── Footer (motif labs-footer, en sombre) ── */
+      .l360-footer {
+        border-top: 1px solid var(--border);
+        padding: var(--s-3xl) 0 var(--s-2xl);
+        margin-top: var(--s-4xl);
+      }
+      .l360-footer__row {
+        display: flex; justify-content: space-between; align-items: flex-start;
+        gap: var(--s-2xl); flex-wrap: wrap;
+      }
+      .l360-footer__mark {
+        font-family: var(--font-label);
+        font-size: 0.66rem; letter-spacing: 0.34em; text-transform: uppercase;
+      }
+      .l360-footer__meta { display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; }
+      .l360-footer__meta a, .l360-footer__meta span {
+        font-family: var(--font-label);
+        font-size: 0.6rem; letter-spacing: 0.24em; text-transform: uppercase;
+        color: var(--dim);
+        transition: color 0.3s ease;
+      }
+      .l360-footer__meta a:hover { color: var(--accent); }
+
+      @media (max-width: 640px) {
+        .l360-footer__row { flex-direction: column; }
+        .l360-footer__meta { align-items: flex-start; }
+      }
+    </style>
+  </body>
+</html>
