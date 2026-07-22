@@ -17,6 +17,16 @@ const ogLocale = lang === 'fr' ? 'fr_CA' : 'en_CA';
 const navAria = lang === 'fr' ? 'Navigation principale' : 'Main navigation';
 const footerAria = lang === 'fr' ? 'Navigation de pied de page' : 'Footer navigation';
 const pad = (n: number) => String(n).padStart(2, '0');
+
+/* Liens des projets, dans l'ordre de l.projects. Les URLs externes ouvrent un
+   nouvel onglet ; les pages internes (Québec en 360) naviguent normalement. */
+const projectLinks = [
+  'https://github.com/theodorebeaupre-prog/copad-server',
+  'https://github.com/theodorebeaupre-prog/garmin-gcd-toolkit',
+  'https://apps.apple.com/ca/app/iso-nord/id6775643517?l=fr-CA',
+  pathFor('labs360', lang),
+];
+const isExternal = (href: string) => href.startsWith('http');
 ---
 
 <!doctype html>
@@ -75,12 +85,12 @@ const pad = (n: number) => String(n).padStart(2, '0');
       <section class="labs-work" aria-label={l.workAria}>
         <div class="labs-inner">
           {l.projects.map((p, i) => (
-            <a href={['https://github.com/theodorebeaupre-prog/copad-server', 'https://github.com/theodorebeaupre-prog/garmin-gcd-toolkit', 'https://apps.apple.com/ca/app/iso-nord/id6775643517?l=fr-CA'][i]} target="_blank" rel="noopener noreferrer" class="labs-item">
+            <a href={projectLinks[i]} target={isExternal(projectLinks[i]) ? '_blank' : undefined} rel={isExternal(projectLinks[i]) ? 'noopener noreferrer' : undefined} class="labs-item">
               <span class="labs-item__num">{pad(i + 1)}</span>
               <div class="labs-item__body">
                 <div class="labs-item__head">
                   <h2 class="labs-item__name">
-                    {p.name}<span class="sr-only"> {c.openNewTab}</span>
+                    {p.name}{isExternal(projectLinks[i]) && <span class="sr-only"> {c.openNewTab}</span>}
                   </h2>
                   <span class="labs-item__arrow" aria-hidden="true">↗</span>
                 </div>

@@ -9,7 +9,8 @@
  * Panorama 360 : image équirectangulaire 2:1 (drone). Vidéo : clip court MP4.
  * `x`/`y` : position du pin sur la carte stylisée, en % (0–100) depuis le
  * coin haut-gauche — pas une vraie projection, juste une disposition plausible.
- * `credit` : contributeur de la capture ('[contributeur]' tant que non confirmé).
+ * `credit` : contributeur de la capture — laisser '' tant que la collaboration
+ * n'est pas confirmée (la ligne crédit est alors masquée dans le viewer).
  */
 
 export type City = 'quebec' | 'montreal';
@@ -49,7 +50,7 @@ export const PLACES: Labs360Place[] = [
       fr: "Les toits du Vieux-Québec et le Château Frontenac, captés à l'aube.",
       en: 'The rooftops of Old Québec and the Château Frontenac, captured at dawn.',
     },
-    credit: '[contributeur]',
+    credit: '',
     x: 62, y: 55,
     media: 'pano-vieux-quebec.png',
   },
@@ -62,7 +63,7 @@ export const PLACES: Labs360Place[] = [
       fr: 'La chute et son embrun, 83 mètres au-dessus du Saint-Laurent.',
       en: 'The falls and their mist, 83 metres above the St. Lawrence.',
     },
-    credit: '[contributeur]',
+    credit: '',
     x: 78, y: 30,
     media: 'pano-chute-montmorency.png',
   },
@@ -75,7 +76,7 @@ export const PLACES: Labs360Place[] = [
       fr: "Survol des rives et des vergers de l'île, au fil des saisons.",
       en: "Flying over the island's shores and orchards, season by season.",
     },
-    credit: '[contributeur]',
+    credit: '',
     x: 85, y: 48,
     media: '/assets/hero-camera.mp4',
     poster: '/assets/portfolio/chute-automne.jpeg',
@@ -89,7 +90,7 @@ export const PLACES: Labs360Place[] = [
       fr: 'Le domaine et son arboretum, vus du ciel en fin de journée.',
       en: 'The estate and its arboretum, seen from above at dusk.',
     },
-    credit: '[contributeur]',
+    credit: '',
     x: 58, y: 38,
     media: 'pano-maizerets.png',
   },
@@ -104,7 +105,7 @@ export const PLACES: Labs360Place[] = [
       fr: 'Les quais, la grande roue et le fleuve — panorama complet du Vieux-Port.',
       en: 'The docks, the Ferris wheel and the river — a full panorama of the Old Port.',
     },
-    credit: '[contributeur]',
+    credit: '',
     x: 55, y: 62,
     media: 'pano-vieux-port.png',
   },
@@ -117,7 +118,7 @@ export const PLACES: Labs360Place[] = [
       fr: 'La montagne et le belvédère Kondiaronk face au centre-ville.',
       en: 'The mountain and the Kondiaronk lookout facing downtown.',
     },
-    credit: '[contributeur]',
+    credit: '',
     x: 42, y: 45,
     media: '/assets/hero-camera.mp4',
     poster: '/assets/portfolio/skyline-quebec.jpeg',
@@ -131,7 +132,7 @@ export const PLACES: Labs360Place[] = [
       fr: 'Les tours du centre-ville à l’heure bleue, en survol cinématique.',
       en: 'Downtown towers at blue hour, in a cinematic flyover.',
     },
-    credit: '[contributeur]',
+    credit: '',
     x: 50, y: 52,
     media: '/assets/hero-camera.mp4',
     poster: '/assets/portfolio/ville-heure-bleue.jpeg',

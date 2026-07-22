@@ -169,10 +169,8 @@ function openModal(placeId, trigger) {
 
   titleEl.textContent = place.name;
   descEl.textContent = place.desc;
-  creditEl.textContent =
-    place.credit && place.credit !== '[contributeur]'
-      ? `${DATA.creditPrefix} ${place.credit}`
-      : '';
+  // Crédit affiché seulement s'il est renseigné (voir data/labs360.ts).
+  creditEl.textContent = place.credit ? `${DATA.creditPrefix} ${place.credit}` : '';
 
   modal.hidden = false;
   lenis?.stop();
