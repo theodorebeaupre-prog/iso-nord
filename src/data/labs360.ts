@@ -93,7 +93,9 @@ export const PLACES: Labs360Place[] = [
     },
     credit: '',
     x: 58, y: 38,
-    media: 'pano-maizerets.png',
+    // Vrai pano drone (Patro Roc-Amadour / Limoilou, stitché des 35 segments
+    // DJI avec Hugin), servi depuis le Mac via Cloudflare Tunnel.
+    media: 'https://media.theo-picture.com/panoramas/maizerets-limoilou-2026.jpg',
   },
 
   // ── Montréal ──────────────────────────────────────────────────────────────

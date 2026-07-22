@@ -143,9 +143,11 @@ async function mountMedia(place) {
       hintEl.hidden = false;
       // L'indice disparaît au premier drag — mousedown ET touchstart, car
       // certains environnements n'émettent pas d'événements pointer.
+      // capture: true — Pannellum consomme le mousedown sur son canvas ;
+      // en phase capture on passe avant lui, garanti.
       const hideHint = () => { hintEl.hidden = true; };
-      host.addEventListener('mousedown', hideHint, { once: true });
-      host.addEventListener('touchstart', hideHint, { once: true, passive: true });
+      host.addEventListener('mousedown', hideHint, { once: true, capture: true });
+      host.addEventListener('touchstart', hideHint, { once: true, capture: true, passive: true });
     } catch {
       showFallback();
     }
