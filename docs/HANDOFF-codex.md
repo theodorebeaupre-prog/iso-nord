@@ -5,6 +5,23 @@
 
 ---
 
+## ⚡ Mise à jour 2026-07-22 (soir) — carte satellite + iso360
+
+- La carte de `/labs/360` n'est plus stylisée : c'est **Apple Maps satellite (MapKit JS)**.
+  Les lieux ont maintenant **`lat`/`lon` réelles** (plus de `x`/`y` en %). Le sélecteur
+  de ville fait survoler la caméra entre Québec et Montréal.
+- **Token MapKit** : fonction serverless `api/mapkit-token.js` (signe un JWT ES256 court,
+  origine dérivée du header **Host**). Secrets en variables Vercel (`MAPKIT_KEY_ID`,
+  `MAPKIT_TEAM_ID`, `MAPKIT_PRIVATE_KEY_B64`) + `.env` local gitignoré. La clé `.p8`
+  n'est JAMAIS committée. L'auth ne marche pas en local (origine restreinte) → tester live.
+- **Deux pièges résolus** (ne pas régresser) : (1) dériver l'origine du token du header
+  `Host`, pas `Origin` (Safari/iPad ne l'envoie pas → carte cassée sur www) ; (2) passer
+  la région au **constructeur** `new mapkit.Map` sinon la carte se cadre sur 0°,0°.
+- **`iso360 <dossier-session-PANORAMA>`** : nouvelle commande (scripts/iso360.sh, symlink
+  /usr/local/bin) qui fait tout — stitch Hugin → géoloc EXIF+Nominatim → tunnel → câblage
+  `labs360.ts` (avec lat/lon) → build → push. Options `--replace <id>`, `--name`, `--city`,
+  `--no-push`, `--dry-run`.
+
 ## TL;DR
 
 `theo-picture.com` est le site vitrine du studio **ISO NORD** (photo/vidéo/drone, Québec).
