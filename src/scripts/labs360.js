@@ -2,9 +2,14 @@
  * Labs 360 — interactions de la page carte.
  *
  * - Lenis + reveals GSAP (mêmes réglages que labs.js)
- * - Sélecteur Québec/Montréal (cross-fade des pins, hash partageable)
- * - Modal viewer : Pannellum (dynamic import, seulement au premier pin 360)
- *   ou <video>, focus piégé, Échap/backdrop, focus restitué au déclencheur.
+ * - Carte satellite Apple Maps (MapKit JS) + pins aux vraies coordonnées GPS
+ * - Sélecteur Québec/Montréal : survole la caméra entre les deux régions
+ * - Modal viewer : Pannellum (dynamic import, au 1er pin 360) ou <video>,
+ *   focus piégé, Échap/backdrop, focus restitué au déclencheur.
+ *
+ * MapKit s'authentifie via /api/mapkit-token (fonction serverless Vercel qui
+ * signe un token court restreint à theo-picture.com). L'auth ne fonctionne
+ * donc PAS en local (localhost) : la liste des lieux ci-dessous reste le repli.
  */
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -52,47 +57,98 @@ if (!reducedMotion) {
   gsap.set(heroBits, { opacity: 0, y: 40 });
   gsap.to(heroBits, { opacity: 1, y: 0, duration: 1.1, stagger: 0.12, ease: 'power3.out', delay: 0.15 });
 
-  // Reveal de la carte à l'entrée dans le viewport. IntersectionObserver
-  // plutôt que ScrollTrigger : insensible aux sauts de scroll virtualisés
-  // par Lenis, et l'état final (opacity 1) est garanti une fois joué.
+  // Reveal de la carte à l'entrée dans le viewport (opacity seulement : pas de
+  // translate, qui décalerait le rendu MapKit).
   const mapEl = document.querySelector('.l360-map');
-  gsap.set(mapEl, { opacity: 0, y: 32 });
+  gsap.set(mapEl, { opacity: 0 });
   const io = new IntersectionObserver((entries) => {
     if (!entries[0].isIntersecting) return;
     io.disconnect();
-    gsap.to(mapEl, { opacity: 1, y: 0, duration: 1, ease: 'power3.out' });
+    gsap.to(mapEl, { opacity: 1, duration: 1, ease: 'power2.out' });
   }, { rootMargin: '0px 0px -15% 0px' });
   io.observe(mapEl);
 }
 
+/* ── Carte satellite Apple Maps (MapKit JS) ───────────────────────────────── */
+// Régions cadrées sur chaque agglomération (centre + amplitude en degrés).
+const REGIONS = {
+  quebec: { center: [46.85, -71.15], span: [0.30, 0.45] },
+  montreal: { center: [45.51, -73.57], span: [0.18, 0.28] },
+};
+let map = null;
+
+function setRegion(city, animate) {
+  if (!map || !REGIONS[city]) return;
+  const r = REGIONS[city];
+  const region = new mapkit.CoordinateRegion(
+    new mapkit.Coordinate(r.center[0], r.center[1]),
+    new mapkit.CoordinateSpan(r.span[0], r.span[1]),
+  );
+  if (animate) map.setRegionAnimated(region);
+  else map.region = region;
+}
+
+function initMapKit() {
+  if (!window.mapkit) return;
+  mapkit.init({
+    authorizationCallback(done) {
+      fetch('/api/mapkit-token')
+        .then((r) => (r.ok ? r.text() : Promise.reject(new Error(r.status))))
+        .then(done)
+        .catch(() => { /* auth impossible (local/offline) → repli légende */ });
+    },
+    language: DATA.lang === 'fr' ? 'fr-CA' : 'en',
+  });
+
+  map = new mapkit.Map('l360-mapkit', {
+    mapType: mapkit.Map.MapTypes.Hybrid,          // satellite + libellés
+    colorScheme: mapkit.Map.ColorSchemes.Dark,
+    showsCompass: mapkit.FeatureVisibility.Hidden,
+    showsScale: mapkit.FeatureVisibility.Hidden,
+    showsMapTypeControl: false,
+    showsZoomControl: true,
+    showsUserLocationControl: false,
+    isRotationEnabled: true,
+  });
+
+  const annotations = DATA.places.map((p) => {
+    const ann = new mapkit.MarkerAnnotation(new mapkit.Coordinate(p.lat, p.lon), {
+      color: '#c8ff00',
+      glyphText: p.type === '360' ? '◉' : '▶',
+      title: p.name,
+      subtitle: p.type === '360' ? DATA.badge360 : DATA.badgeVideo,
+      clusteringIdentifier: null,
+    });
+    ann.data = { id: p.id };
+    ann.addEventListener('select', () => openModal(p.id, null));
+    return ann;
+  });
+  map.addAnnotations(annotations);
+  setRegion(currentCity(), false);
+}
+
+// MapKit charge en async : attendre son script avant d'initialiser.
+function whenMapKitReady(cb) {
+  if (window.mapkit) return cb();
+  const s = document.getElementById('mapkit-js');
+  if (s) s.addEventListener('load', cb, { once: true });
+}
+whenMapKitReady(initMapKit);
+
 /* ── Sélecteur de ville ───────────────────────────────────────────────────── */
 const cityButtons = [...document.querySelectorAll('[data-city-btn]')];
-const pinGroups = [...document.querySelectorAll('.l360-pins')];
 const legends = [...document.querySelectorAll('[data-legend-city]')];
 
-function showCity(city) {
+const currentCity = () => (location.hash === '#montreal' ? 'montreal' : 'quebec');
+
+function showCity(city, animate = true) {
   cityButtons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cityBtn === city)));
   legends.forEach((leg) => { leg.hidden = leg.dataset.legendCity !== city; });
-  pinGroups.forEach((g) => {
-    const active = g.dataset.city === city;
-    if (active === !g.hidden) return;               // déjà dans le bon état
-    if (reducedMotion) { g.hidden = !active; return; }
-    if (active) {
-      g.hidden = false;
-      gsap.fromTo(g.querySelectorAll('.l360-pin'),
-        { opacity: 0, scale: 0.6 },
-        { opacity: 1, scale: 1, duration: 0.4, stagger: 0.06, ease: 'back.out(1.7)' });
-    } else {
-      gsap.to(g.querySelectorAll('.l360-pin'), {
-        opacity: 0, scale: 0.6, duration: 0.2, ease: 'power2.in',
-        onComplete: () => { g.hidden = true; },
-      });
-    }
-  });
-  history.replaceState(null, '', `#${city}`);       // état partageable
+  setRegion(city, animate);
+  history.replaceState(null, '', `#${city}`);
 }
 cityButtons.forEach((b) => b.addEventListener('click', () => showCity(b.dataset.cityBtn)));
-if (location.hash === '#montreal') showCity('montreal');
+showCity(currentCity(), false);   // état initial (légende + aria) ; la carte suit dès qu'elle est prête
 
 /* ── Modal viewer ─────────────────────────────────────────────────────────── */
 const modal = document.getElementById('l360-modal');
@@ -106,7 +162,7 @@ const descEl = modal.querySelector('.l360-modal__desc');
 const creditEl = modal.querySelector('.l360-modal__credit');
 
 let viewer = null;          // instance Pannellum courante
-let lastTrigger = null;     // bouton à re-focus à la fermeture
+let lastTrigger = null;     // élément à re-focus à la fermeture (null si clic carte)
 let open = false;
 
 function showFallback() {
@@ -141,10 +197,8 @@ async function mountMedia(place) {
       });
       viewer.on('error', showFallback);
       hintEl.hidden = false;
-      // L'indice disparaît au premier drag — mousedown ET touchstart, car
-      // certains environnements n'émettent pas d'événements pointer.
-      // capture: true — Pannellum consomme le mousedown sur son canvas ;
-      // en phase capture on passe avant lui, garanti.
+      // L'indice disparaît au premier drag — capture: true pour passer avant
+      // le handler de Pannellum sur son canvas.
       const hideHint = () => { hintEl.hidden = true; };
       host.addEventListener('mousedown', hideHint, { once: true, capture: true });
       host.addEventListener('touchstart', hideHint, { once: true, capture: true, passive: true });
@@ -179,10 +233,12 @@ function openModal(placeId, trigger) {
   document.body.style.overflow = 'hidden';
   mountMedia(place);
 
-  if (reducedMotion) {
-    gsap.set([backdrop, panel], { opacity: 1, scale: 1 });
+  if (reducedMotion || !trigger) {
+    // Clic depuis la carte (pas d'élément d'origine) → simple fondu + zoom.
+    gsap.fromTo(backdrop, { opacity: 0 }, { opacity: 0.92, duration: 0.3, ease: 'power2.out' });
+    gsap.fromTo(panel, { opacity: 0, scale: 0.94 }, { opacity: 1, scale: 1, duration: 0.4, ease: 'power3.out' });
   } else {
-    // Le panneau émerge depuis le pin : origin = centre du déclencheur.
+    // Le panneau émerge depuis le déclencheur (item de légende).
     const r = trigger.getBoundingClientRect();
     const p = panel.getBoundingClientRect();
     panel.style.transformOrigin =
@@ -203,6 +259,7 @@ function closeModal() {
     viewer?.destroy();
     viewer = null;
     mediaHost.replaceChildren();          // stoppe la vidéo, libère Pannellum
+    if (map) map.selectedAnnotation = null;  // désélectionne le pin de la carte
     lenis?.start();
     document.body.style.overflow = '';
     lastTrigger?.focus();
@@ -212,6 +269,7 @@ function closeModal() {
   gsap.to(backdrop, { opacity: 0, duration: 0.3, delay: 0.05, onComplete: done });
 }
 
+// Les items de légende ouvrent la modale (accessibles + repli si la carte casse).
 document.querySelectorAll('[data-place-id]').forEach((btn) => {
   btn.addEventListener('click', () => openModal(btn.dataset.placeId, btn));
 });

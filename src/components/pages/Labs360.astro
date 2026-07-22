@@ -36,13 +36,18 @@ const runtime = {
   creditPrefix: l.creditPrefix,
   places: PLACES.map((p) => ({
     id: p.id,
+    city: p.city,
     type: p.type,
     name: p.name,
     desc: p.desc[lang],
     credit: p.credit,
+    lat: p.lat,
+    lon: p.lon,
     media: mediaUrl(p.media),
     poster: p.poster ? mediaUrl(p.poster) : '',
   })),
+  badge360: l.badge360,
+  badgeVideo: l.badgeVideo,
 };
 ---
 
@@ -70,6 +75,9 @@ const runtime = {
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500&family=Archivo+Expanded:wght@200;300;500&family=Barlow+Condensed:wght@300;400&display=swap" rel="stylesheet" />
+
+    <!-- Apple Maps (MapKit JS) — carte satellite. Auth via /api/mapkit-token. -->
+    <script id="mapkit-js" crossorigin async src="https://cdn.apple-mapkit.com/mk/5.x.x/mapkit.js"></script>
   </head>
 
   <body class="l360-page">
@@ -112,39 +120,10 @@ const runtime = {
             ))}
           </div>
 
-          <!-- Carte stylisée : grille + pins en % -->
+          <!-- Carte satellite Apple Maps (MapKit JS) — remplie par labs360.js -->
           <div class="l360-map" role="region" aria-label={l.mapAria}>
-            <svg class="l360-grid" aria-hidden="true" preserveAspectRatio="none" viewBox="0 0 100 100">
-              {Array.from({ length: 9 }, (_, i) => (
-                <line x1={(i + 1) * 10} y1="0" x2={(i + 1) * 10} y2="100" />
-              ))}
-              {Array.from({ length: 9 }, (_, i) => (
-                <line x1="0" y1={(i + 1) * 10} x2="100" y2={(i + 1) * 10} />
-              ))}
-            </svg>
-            <span class="l360-coord l360-coord--tl" aria-hidden="true">46°48′N</span>
-            <span class="l360-coord l360-coord--br" aria-hidden="true">71°14′W</span>
-
-            {CITIES.map((city, ci) => (
-              <div class="l360-pins" data-city={city} hidden={ci !== 0}>
-                {byCity(city).map((p) => (
-                  <button
-                    type="button"
-                    class="l360-pin"
-                    data-place-id={p.id}
-                    style={`left:${p.x}%; top:${p.y}%;`}
-                    aria-haspopup="dialog"
-                  >
-                    <span class="l360-pin__ring" aria-hidden="true"></span>
-                    <span class="l360-pin__dot" aria-hidden="true"></span>
-                    <span class="l360-pin__label">
-                      {p.name}
-                      <em class="l360-pin__badge">{p.type === '360' ? l.badge360 : l.badgeVideo}</em>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            ))}
+            <div id="l360-mapkit" class="l360-mapkit"></div>
+            <p class="l360-map__fallback">{l.mapUnavailable}</p>
           </div>
 
           <!-- Légende — mêmes lieux, tapables (mobile d'abord) -->
@@ -288,79 +267,33 @@ const runtime = {
         border: 1px solid var(--border);
         overflow: hidden;
       }
-      .l360-map::after {                    /* grain du site */
-        content: '';
-        position: absolute; inset: 0;
-        background: var(--grain);
-        opacity: 0.05;
-        pointer-events: none;
-      }
       @media (min-width: 768px) { .l360-map { aspect-ratio: 16 / 10; } }
 
-      .l360-grid { position: absolute; inset: 0; width: 100%; height: 100%; }
-      .l360-grid line { stroke: var(--border); stroke-width: 0.15; }
-
-      .l360-coord {
-        position: absolute;
+      /* Conteneur MapKit — rempli par labs360.js. Sous la carte, un message de
+         repli reste visible tant que la carte n'a pas chargé (ou si elle échoue). */
+      .l360-mapkit { position: absolute; inset: 0; z-index: 1; }
+      .l360-map__fallback {
+        position: absolute; inset: 0; z-index: 0;
+        display: grid; place-items: center;
+        padding: 2rem; text-align: center;
         font-family: var(--font-label);
-        font-size: 0.6rem;
-        letter-spacing: 0.24em;
+        font-size: 0.72rem; letter-spacing: 0.22em; text-transform: uppercase;
         color: var(--dim);
       }
-      .l360-coord--tl { top: 0.8rem; left: 1rem; }
-      .l360-coord--br { bottom: 0.8rem; right: 1rem; }
-
-      /* ── Pins ── */
-      .l360-pins { position: absolute; inset: 0; }
-      .l360-pin {
-        appearance: none; background: none; border: 0; cursor: pointer;
-        position: absolute;
-        width: 44px; height: 44px;          /* cible tactile ≥ 44px */
-        transform: translate(-50%, -50%);
-        display: grid; place-items: center;
-      }
-      .l360-pin__dot {
-        grid-area: 1 / 1;
-        width: 9px; height: 9px;
-        border-radius: 50%;
+      /* Marqueur lime custom posé sur la carte (annotation MapKit). */
+      .l360-marker {
+        width: 22px; height: 22px; border-radius: 50%;
         background: var(--accent);
-        box-shadow: 0 0 12px color-mix(in oklab, var(--accent) 60%, transparent);
+        border: 2px solid #141318;
+        box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 60%, transparent),
+                    0 2px 8px rgba(0,0,0,0.5);
+        cursor: pointer;
+        display: grid; place-items: center;
+        color: #141318; font-size: 11px; font-weight: 700;
+        transition: transform 0.2s ease;
       }
-      .l360-pin__ring {
-        grid-area: 1 / 1;
-        width: 26px; height: 26px;
-        border-radius: 50%;
-        border: 1px solid color-mix(in oklab, var(--accent) 55%, transparent);
-        animation: l360-pulse 2.6s ease-out infinite;
-      }
-      @keyframes l360-pulse {
-        0% { transform: scale(0.6); opacity: 0.9; }
-        70%, 100% { transform: scale(1.5); opacity: 0; }
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .l360-pin__ring { animation: none; opacity: 0.5; }
-      }
-      .l360-pin__label {
-        position: absolute;
-        bottom: calc(100% - 2px);
-        left: 50%;
-        transform: translateX(-50%);
-        white-space: nowrap;
-        font-family: var(--font-label);
-        font-size: 0.66rem;
-        letter-spacing: 0.2em;
-        text-transform: uppercase;
-        color: var(--text);
-        background: color-mix(in oklab, var(--bg) 82%, transparent);
-        border: 1px solid var(--border);
-        padding: 0.3rem 0.55rem;
-        opacity: 0;
-        transition: opacity 0.25s ease;
-        pointer-events: none;
-      }
-      .l360-pin:hover .l360-pin__label,
-      .l360-pin:focus-visible .l360-pin__label { opacity: 1; }
-      .l360-pin__badge, .l360-legend__badge {
+      .l360-marker:hover { transform: scale(1.2); }
+      .l360-legend__badge {
         font-style: normal;
         color: var(--accent);
         margin-left: 0.5em;

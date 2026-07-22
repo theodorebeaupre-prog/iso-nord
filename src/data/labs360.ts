@@ -7,8 +7,9 @@
  * les chemins absolus (`/…` ou `https://…`) passent tels quels.
  *
  * Panorama 360 : image équirectangulaire 2:1 (drone). Vidéo : clip court MP4.
- * `x`/`y` : position du pin sur la carte stylisée, en % (0–100) depuis le
- * coin haut-gauche — pas une vraie projection, juste une disposition plausible.
+ * `lat`/`lon` : vraies coordonnées GPS du lieu — le pin se pose dessus sur la
+ * carte satellite Apple Maps (MapKit JS). `iso360` les remplit automatiquement
+ * depuis l'EXIF du panorama ; pour les autres, ce sont les coordonnées du lieu.
  * `credit` : contributeur de la capture — laisser '' tant que la collaboration
  * n'est pas confirmée (la ligne crédit est alors masquée dans le viewer).
  */
@@ -23,8 +24,8 @@ export interface Labs360Place {
   name: string;                       // nom propre — identique fr/en
   desc: { fr: string; en: string };
   credit: string;
-  x: number;                          // % depuis la gauche
-  y: number;                          // % depuis le haut
+  lat: number;                        // latitude GPS
+  lon: number;                        // longitude GPS
   media: string;
   poster?: string;                    // affiche (vidéo surtout)
 }
@@ -51,7 +52,7 @@ export const PLACES: Labs360Place[] = [
       en: 'The rooftops of Old Québec and the Château Frontenac, captured at dawn.',
     },
     credit: '',
-    x: 62, y: 55,
+    lat: 46.8119, lon: -71.2056,
     // Servi depuis le Mac via Cloudflare Tunnel (SSD 1/iso-nord-media)
     media: 'https://media.theo-picture.com/panoramas/pano-vieux-quebec-demo.jpg',
   },
@@ -65,7 +66,7 @@ export const PLACES: Labs360Place[] = [
       en: 'The falls and their mist, 83 metres above the St. Lawrence.',
     },
     credit: '',
-    x: 78, y: 30,
+    lat: 46.8906, lon: -71.1478,
     media: 'pano-chute-montmorency.png',
   },
   {
@@ -78,7 +79,7 @@ export const PLACES: Labs360Place[] = [
       en: "Flying over the island's shores and orchards, season by season.",
     },
     credit: '',
-    x: 85, y: 48,
+    lat: 46.9200, lon: -70.9700,
     media: '/assets/hero-camera.mp4',
     poster: '/assets/portfolio/chute-automne.jpeg',
   },
@@ -92,7 +93,7 @@ export const PLACES: Labs360Place[] = [
       en: 'The estate and its arboretum, seen from above at dusk.',
     },
     credit: '',
-    x: 62, y: 40,
+    lat: 46.8360, lon: -71.2139,
     media: "https://media.theo-picture.com/panoramas/maizerets-2025-10.jpg",
   },
   {
@@ -105,7 +106,7 @@ export const PLACES: Labs360Place[] = [
       en: 'The Patro and the Lairet neighbourhood from 100 m up — Centre Vidéotron and the Québec City skyline on the horizon.',
     },
     credit: '',
-    x: 52, y: 42,
+    lat: 46.8327, lon: -71.2445,
     // Vrai pano drone (28 juin 2026, GPS 46.8327 N 71.2445 W, stitché des
     // 35 segments DJI avec Hugin), servi via Cloudflare Tunnel.
     media: 'https://media.theo-picture.com/panoramas/patro-roc-amadour-2026.jpg',
@@ -122,7 +123,7 @@ export const PLACES: Labs360Place[] = [
       en: 'The docks, the Ferris wheel and the river — a full panorama of the Old Port.',
     },
     credit: '',
-    x: 55, y: 62,
+    lat: 45.5075, lon: -73.5470,
     media: 'pano-vieux-port.png',
   },
   {
@@ -135,7 +136,7 @@ export const PLACES: Labs360Place[] = [
       en: 'The mountain and the Kondiaronk lookout facing downtown.',
     },
     credit: '',
-    x: 42, y: 45,
+    lat: 45.5045, lon: -73.5872,
     media: '/assets/hero-camera.mp4',
     poster: '/assets/portfolio/skyline-quebec.jpeg',
   },
@@ -149,7 +150,7 @@ export const PLACES: Labs360Place[] = [
       en: 'Downtown towers at blue hour, in a cinematic flyover.',
     },
     credit: '',
-    x: 50, y: 52,
+    lat: 45.5017, lon: -73.5673,
     media: '/assets/hero-camera.mp4',
     poster: '/assets/portfolio/ville-heure-bleue.jpeg',
   },
