@@ -77,16 +77,31 @@ const REGIONS = {
 };
 let map = null;
 
-function setRegion(city, animate) {
-  if (!map || !REGIONS[city]) return;
-  const r = REGIONS[city];
-  const region = new mapkit.CoordinateRegion(
+const cityButtons = [...document.querySelectorAll('[data-city-btn]')];
+const legends = [...document.querySelectorAll('[data-legend-city]')];
+const currentCity = () => (location.hash === '#montreal' ? 'montreal' : 'quebec');
+
+function regionFor(city) {
+  const r = REGIONS[city] || REGIONS.quebec;
+  return new mapkit.CoordinateRegion(
     new mapkit.Coordinate(r.center[0], r.center[1]),
     new mapkit.CoordinateSpan(r.span[0], r.span[1]),
   );
-  if (animate) map.setRegionAnimated(region);
-  else map.region = region;
 }
+
+function showCity(city, animateMap = true) {
+  cityButtons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cityBtn === city)));
+  legends.forEach((leg) => { leg.hidden = leg.dataset.legendCity !== city; });
+  if (map) {
+    if (animateMap) map.setRegionAnimated(regionFor(city));
+    else map.region = regionFor(city);
+  }
+  history.replaceState(null, '', `#${city}`);
+}
+cityButtons.forEach((b) => b.addEventListener('click', () => showCity(b.dataset.cityBtn)));
+// État initial (légende + aria). La carte est cadrée via le constructeur ci-dessous.
+cityButtons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cityBtn === currentCity())));
+legends.forEach((leg) => { leg.hidden = leg.dataset.legendCity !== currentCity(); });
 
 function initMapKit() {
   if (!window.mapkit) return;
@@ -100,7 +115,10 @@ function initMapKit() {
     language: DATA.lang === 'fr' ? 'fr-CA' : 'en',
   });
 
+  // Région passée au constructeur → cadrage initial fiable (sinon MapKit
+  // retombe sur 0°,0° avant qu'un map.region tardif ne s'applique).
   map = new mapkit.Map('l360-mapkit', {
+    region: regionFor(currentCity()),
     mapType: mapkit.Map.MapTypes.Hybrid,          // satellite + libellés
     colorScheme: mapkit.Map.ColorSchemes.Dark,
     showsCompass: mapkit.FeatureVisibility.Hidden,
@@ -117,38 +135,21 @@ function initMapKit() {
       glyphText: p.type === '360' ? '◉' : '▶',
       title: p.name,
       subtitle: p.type === '360' ? DATA.badge360 : DATA.badgeVideo,
-      clusteringIdentifier: null,
     });
     ann.data = { id: p.id };
     ann.addEventListener('select', () => openModal(p.id, null));
     return ann;
   });
   map.addAnnotations(annotations);
-  setRegion(currentCity(), false);
 }
 
 // MapKit charge en async : attendre son script avant d'initialiser.
-function whenMapKitReady(cb) {
-  if (window.mapkit) return cb();
+if (window.mapkit) {
+  initMapKit();
+} else {
   const s = document.getElementById('mapkit-js');
-  if (s) s.addEventListener('load', cb, { once: true });
+  if (s) s.addEventListener('load', initMapKit, { once: true });
 }
-whenMapKitReady(initMapKit);
-
-/* ── Sélecteur de ville ───────────────────────────────────────────────────── */
-const cityButtons = [...document.querySelectorAll('[data-city-btn]')];
-const legends = [...document.querySelectorAll('[data-legend-city]')];
-
-const currentCity = () => (location.hash === '#montreal' ? 'montreal' : 'quebec');
-
-function showCity(city, animate = true) {
-  cityButtons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cityBtn === city)));
-  legends.forEach((leg) => { leg.hidden = leg.dataset.legendCity !== city; });
-  setRegion(city, animate);
-  history.replaceState(null, '', `#${city}`);
-}
-cityButtons.forEach((b) => b.addEventListener('click', () => showCity(b.dataset.cityBtn)));
-showCity(currentCity(), false);   // état initial (légende + aria) ; la carte suit dès qu'elle est prête
 
 /* ── Modal viewer ─────────────────────────────────────────────────────────── */
 const modal = document.getElementById('l360-modal');
