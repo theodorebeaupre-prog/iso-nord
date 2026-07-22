@@ -52,10 +52,17 @@ if (!reducedMotion) {
   gsap.set(heroBits, { opacity: 0, y: 40 });
   gsap.to(heroBits, { opacity: 1, y: 0, duration: 1.1, stagger: 0.12, ease: 'power3.out', delay: 0.15 });
 
-  gsap.from('.l360-map', {
-    opacity: 0, y: 32, duration: 1,
-    scrollTrigger: { trigger: '.l360-map', start: 'top 85%' },
-  });
+  // Reveal de la carte à l'entrée dans le viewport. IntersectionObserver
+  // plutôt que ScrollTrigger : insensible aux sauts de scroll virtualisés
+  // par Lenis, et l'état final (opacity 1) est garanti une fois joué.
+  const mapEl = document.querySelector('.l360-map');
+  gsap.set(mapEl, { opacity: 0, y: 32 });
+  const io = new IntersectionObserver((entries) => {
+    if (!entries[0].isIntersecting) return;
+    io.disconnect();
+    gsap.to(mapEl, { opacity: 1, y: 0, duration: 1, ease: 'power3.out' });
+  }, { rootMargin: '0px 0px -15% 0px' });
+  io.observe(mapEl);
 }
 
 /* ── Sélecteur de ville ───────────────────────────────────────────────────── */
@@ -134,8 +141,11 @@ async function mountMedia(place) {
       });
       viewer.on('error', showFallback);
       hintEl.hidden = false;
-      // L'indice disparaît au premier drag.
-      host.addEventListener('pointerdown', () => { hintEl.hidden = true; }, { once: true });
+      // L'indice disparaît au premier drag — mousedown ET touchstart, car
+      // certains environnements n'émettent pas d'événements pointer.
+      const hideHint = () => { hintEl.hidden = true; };
+      host.addEventListener('mousedown', hideHint, { once: true });
+      host.addEventListener('touchstart', hideHint, { once: true, passive: true });
     } catch {
       showFallback();
     }

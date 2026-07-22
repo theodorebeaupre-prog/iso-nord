@@ -388,7 +388,9 @@ const runtime = {
       .l360-legend__badge { font-size: 0.66rem; }
 
       /* ── Modal ── */
-      .l360-modal { position: fixed; inset: 0; z-index: 50; }
+      /* user-select: none — le drag du panorama traverse la fiche du lieu
+         et surlignerait le texte sans ça. */
+      .l360-modal { position: fixed; inset: 0; z-index: 50; user-select: none; }
       .l360-modal__backdrop {
         position: absolute; inset: 0;
         background: color-mix(in oklab, var(--bg) 78%, black);
