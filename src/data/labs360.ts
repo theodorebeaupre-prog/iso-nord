@@ -15,7 +15,7 @@
  */
 
 export type City = 'quebec' | 'montreal';
-export type PlaceType = '360' | 'video';
+export type PlaceType = '360' | 'video' | 'photo';
 
 export interface Labs360Place {
   id: string;

@@ -48,6 +48,7 @@ const runtime = {
   })),
   badge360: l.badge360,
   badgeVideo: l.badgeVideo,
+  badgePhoto: l.badgePhoto,
 };
 ---
 
@@ -134,7 +135,7 @@ const runtime = {
                   <button type="button" class="l360-legend__item" data-place-id={p.id} aria-haspopup="dialog">
                     <span class="l360-legend__num">{pad(i + 1)}</span>
                     <span class="l360-legend__name">{p.name}</span>
-                    <em class="l360-legend__badge">{p.type === '360' ? l.badge360 : l.badgeVideo}</em>
+                    <em class="l360-legend__badge">{p.type === '360' ? l.badge360 : p.type === 'photo' ? l.badgePhoto : l.badgeVideo}</em>
                   </button>
                 </li>
               ))}
@@ -357,11 +358,13 @@ const runtime = {
 
       .l360-modal__media { position: relative; flex: 1; min-height: 0; background: #0c0b0f; }
       .l360-modal__media :global(video),
-      .l360-modal__media :global(.pnlm-container) {
+      .l360-modal__media :global(.pnlm-container),
+      .l360-modal__media :global(img) {
         position: absolute !important; inset: 0;
         width: 100% !important; height: 100% !important;
       }
       .l360-modal__media :global(video) { object-fit: cover; }
+      .l360-modal__media :global(img) { object-fit: contain; background: #0c0b0f; }
 
       .l360-modal__hint {
         position: absolute;

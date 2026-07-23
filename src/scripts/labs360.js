@@ -123,11 +123,13 @@ function initMapKit() {
   });
 
   const annotations = DATA.places.map((p) => {
+    const glyph = p.type === '360' ? '◉' : p.type === 'photo' ? '◆' : '▶';
+    const badge = p.type === '360' ? DATA.badge360 : p.type === 'photo' ? DATA.badgePhoto : DATA.badgeVideo;
     const ann = new mapkit.MarkerAnnotation(new mapkit.Coordinate(p.lat, p.lon), {
       color: '#c8ff00',
-      glyphText: p.type === '360' ? '◉' : '▶',
+      glyphText: glyph,
       title: p.name,
-      subtitle: p.type === '360' ? DATA.badge360 : DATA.badgeVideo,
+      subtitle: badge,
     });
     ann.data = { id: p.id };
     ann.addEventListener('select', () => openModal(p.id, null));
@@ -212,6 +214,13 @@ async function mountMedia(place) {
     } catch {
       showFallback();
     }
+  } else if (place.type === 'photo') {
+    const img = document.createElement('img');
+    img.loading = 'lazy';
+    img.alt = place.name;
+    img.src = place.media;
+    img.addEventListener('error', showFallback, { once: true });
+    mediaHost.append(img);
   } else {
     const video = document.createElement('video');
     video.controls = true;
