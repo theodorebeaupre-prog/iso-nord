@@ -89,12 +89,13 @@ export const PLACES: Labs360Place[] = [
     type: '360',
     name: 'Domaine de Maizerets',
     desc: {
-      fr: 'Le domaine et son arboretum, vus du ciel en fin de journée.',
-      en: 'The estate and its arboretum, seen from above at dusk.',
+      fr: 'Maizerets et Limoilou sous la neige, au coucher du soleil d’hiver.',
+      en: 'Maizerets and Limoilou under snow, at winter sunset.',
     },
     credit: '',
-    lat: 46.8360, lon: -71.2139,
-    media: "https://media.theo-picture.com/panoramas/maizerets-2025-10.jpg",
+    lat: 46.8436, lon: -71.2235,
+    // Pano drone DJI (14 déc 2025), servi via Cloudflare Tunnel.
+    media: 'https://media.theo-picture.com/panoramas/maizerets-hiver-2025-12.jpg',
   },
   {
     id: 'patro-roc-amadour',
@@ -158,10 +159,10 @@ export const PLACES: Labs360Place[] = [
     id: "giffard",
     city: "quebec",
     type: '360',
-    name: "Giffard",
+    name: 'Giffard',
     desc: {
-      fr: "Giffard \u2014 vue a\u00e9rienne capt\u00e9e au drone.",
-      en: "Giffard \u2014 aerial view captured by drone.",
+      fr: 'Giffard et Beauport \u00e0 400 m d\u2019altitude \u2014 le fleuve, l\u2019\u00eele d\u2019Orl\u00e9ans et Qu\u00e9bec \u00e0 l\u2019horizon.',
+      en: 'Giffard and Beauport from 400 m up \u2014 the river, \u00cele d\u2019Orl\u00e9ans and Qu\u00e9bec City on the horizon.',
     },
     credit: '',
     lat: 46.849922222222226, lon: -71.21155555555556,
