@@ -21,7 +21,7 @@
 #
 # Options :
 #   --name "Nom du lieu"    Force le nom (sinon déduit du géocodage)
-#   --city quebec|montreal  Force la ville (sinon déduite du GPS)
+#   --city quebec           Force Québec (les autres destinations sont refusées)
 #   --id slug               Force l'id/slug du lieu
 #   --lat <deg> --lon <deg> Force les coordonnées (si l'export a perdu le GPS EXIF)
 #   --replace <id>          Met à jour le média d'un lieu EXISTANT au lieu d'en créer un
@@ -51,6 +51,7 @@ MEDIA_DIR="/Volumes/SSD 1/iso-nord-media/panoramas"
 export MEDIA_BASE_URL="https://media.theo-picture.com/panoramas"  # exporté pour core_commit_push
 LIVE_PAGE="https://theo-picture.com/labs/360"
 DATA_FILE="$REPO/src/data/labs360.ts"
+PREVIEW_DIR="$REPO/public/assets/labs360/previews"
 HUGIN="/Applications/Hugin/tools_mac"
 CANVAS="6300x3150"           # taille du panorama de sortie (2:1)
 SEG_WIDTH=2016               # downscale des segments avant cpfind (vitesse)
@@ -160,6 +161,8 @@ fi
 
 GEO_NAME=$(echo "$GEO_JSON" | python3 -c 'import json,sys;print(json.load(sys.stdin)["name"])')
 GEO_CITY=$(echo "$GEO_JSON" | python3 -c 'import json,sys;print(json.load(sys.stdin)["city"])')
+core_require_quebec "$GEO_CITY" \
+  || die "Destination hors Québec — aucun média ni donnée publié."
 GEO_ID=$(echo "$GEO_JSON" | python3 -c 'import json,sys;print(json.load(sys.stdin)["id"])')
 GEO_YM=$(echo "$GEO_JSON" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("ym") or "")')
 GEO_DISPLAY=$(echo "$GEO_JSON" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("display",""))')
@@ -189,12 +192,22 @@ core_publish_verify "$WORK/pano.jpg" "$MEDIA_DIR" "$MEDIA_BASE_URL" "$FILE" \
   || die "Publication/vérification échouée (tunnel/Caddy arrêté ? cf handoff §3)"
 
 # ─── 6. Câblage dans labs360.ts (via le cœur : insertion ou remplacement) ────
+PREVIEW_FILE="${GEO_ID}-${GEO_YM}.webp"
+PREVIEW_PATH="$PREVIEW_DIR/$PREVIEW_FILE"
+mkdir -p "$PREVIEW_DIR" || die "Impossible de préparer le dossier des aperçus"
+if ! PREVIEW_DIMS="$(core_make_preview "$WORK/pano.jpg" "$PREVIEW_PATH")"; then
+  die "Génération de l’aperçu WebP échouée"
+fi
+IFS='|' read -r PREVIEW_WIDTH PREVIEW_HEIGHT <<< "$PREVIEW_DIMS"
 DATA_SNAPSHOT="$(mktemp "${TMPDIR:-/tmp}/iso360-data.XXXXXX")"
 cp "$DATA_FILE" "$DATA_SNAPSHOT" || die "Impossible de sauvegarder labs360.ts"
 GEO_JSON="$GEO_JSON" MEDIA_URL="$MEDIA_BASE_URL/$FILE" PTYPE='360' POSTER_URL='' \
+  PREVIEW_URL="/assets/labs360/previews/$PREVIEW_FILE" \
+  PREVIEW_WIDTH="$PREVIEW_WIDTH" PREVIEW_HEIGHT="$PREVIEW_HEIGHT" CAPTURED_AT="$GEO_YM" \
   REPLACE="$REPLACE" WIRE_NOTE='Pano drone auto-publié par iso360' DATA="$DATA_FILE" \
   core_wire || {
     cp "$DATA_SNAPSHOT" "$DATA_FILE"
+    rm -f "$PREVIEW_PATH"
     rm -f "$DATA_SNAPSHOT"
     die "Câblage labs360.ts échoué"
   }
@@ -202,15 +215,17 @@ ok "labs360.ts câblé"
 
 # ─── 7. Garde-fou : build avant de pousser (via le cœur) ─────────────────────
 core_build_guard "$DATA_FILE" "$DATA_SNAPSHOT" || {
+  rm -f "$PREVIEW_PATH"
   rm -f "$DATA_SNAPSHOT"
   die "Build échoué → rien poussé. Voir /tmp/iso360-build.log"
 }
 
 # ─── 8. Commit + push (via le cœur) ──────────────────────────────────────────
 verb=$([[ -n "$REPLACE" ]] && echo "update" || echo "add")
-if ! core_commit_push "$DATA_FILE" "$verb" "$GEO_NAME" "$PUSH" "$LIVE_PAGE" "$FILE" "$GEO_CITY"; then
-  git -C "$REPO" reset -q -- "$DATA_FILE" 2>/dev/null || true
+if ! core_commit_push "$DATA_FILE" "$verb" "$GEO_NAME" "$PUSH" "$LIVE_PAGE" "$FILE" "$GEO_CITY" "$PREVIEW_PATH"; then
+  git -C "$REPO" reset -q -- "$DATA_FILE" "$PREVIEW_PATH" 2>/dev/null || true
   cp "$DATA_SNAPSHOT" "$DATA_FILE"
+  rm -f "$PREVIEW_PATH"
   rm -f "$DATA_SNAPSHOT"
   die "Commit/push échoué → labs360.ts restauré, original conservé."
 fi

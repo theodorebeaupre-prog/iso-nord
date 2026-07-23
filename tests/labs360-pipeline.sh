@@ -358,35 +358,88 @@ test_push_targets_head_to_main_explicitly() {
   fi
 }
 
-test_hidden_montreal_media_skips_misleading_live_poll() {
-  local case_dir="$TMP_ROOT/git-hidden-montreal"
-  mkdir -p "$case_dir/bin"
-  printf 'data\n' > "$case_dir/labs360.ts"
-  printf '%s\n' '#!/usr/bin/env bash' \
-    'case " $* " in' \
-    '  *" symbolic-ref "*) printf "main\\n";;' \
-    '  *" rev-parse "*) printf "deadbeef\\n";;' \
-    'esac' \
-    'exit 0' > "$case_dir/bin/git"
-  printf '%s\n' '#!/usr/bin/env bash' \
-    'printf called >> "$ISO_TEST_CURL_CALLED"' \
-    'exit 0' > "$case_dir/bin/curl"
-  chmod +x "$case_dir/bin/git" "$case_dir/bin/curl"
-
+test_montreal_is_rejected_before_publication() {
+  local output="" status=0
   output="$(
-    export ISO_TEST_CURL_CALLED="$case_dir/curl.called"
-    PATH="$case_dir/bin:$PATH"
-    . "$ROOT/scripts/iso360-core.sh"
-    core_commit_push "$case_dir/labs360.ts" add "Montréal" 1 \
-      "https://example.invalid/labs/360" "montreal.jpg" "montreal" 2>&1
-  )"
-  if [ ! -e "$case_dir/curl.called" ] \
-    && printf '%s' "$output" | rg -q 'invisible.*pas.*preuve.*déploiement' \
-    && ! printf '%s' "$output" | rg -q 'EN LIGNE'; then
-    pass "un média Montréal invisible évite le polling et ne prétend pas être déployé"
+    {
+      . "$ROOT/scripts/iso360-core.sh"
+      core_require_quebec montreal
+    } 2>&1
+  )" || status=$?
+
+  if [ "$status" -ne 0 ] \
+    && printf '%s' "$output" | rg -q 'Québec seulement' \
+    && (
+      . "$ROOT/scripts/iso360-core.sh"
+      core_require_quebec quebec
+    ) >/dev/null 2>&1; then
+    pass "Québec est accepté et Montréal est refusé avant publication"
   else
     printf '  sortie=%s\n' "$output" >&2
-    fail "un média Montréal invisible évite le polling trompeur"
+    fail "le pipeline doit refuser Montréal avant toute publication"
+  fi
+}
+
+test_wire_includes_preview_contract() {
+  local case_dir="$TMP_ROOT/wire-preview" data
+  mkdir -p "$case_dir"
+  data="$case_dir/labs360.ts"
+  printf '%s\n' 'export const PLACES = [' '  // iso360:insert' '];' > "$data"
+
+  (
+    . "$ROOT/scripts/iso360-core.sh"
+    GEO_JSON='{"lat":46.81,"lon":-71.20,"dt":"2026:07:23","ym":"2026-07","name":"Test Québec","city":"quebec","id":"test-quebec"}' \
+    MEDIA_URL='https://media.example/panoramas/test.jpg' \
+    PREVIEW_URL='/assets/labs360/previews/test-quebec.webp' \
+    PREVIEW_WIDTH='1600' PREVIEW_HEIGHT='800' CAPTURED_AT='2026-07' \
+    PTYPE='360' POSTER_URL='' REPLACE='' WIRE_NOTE='Test' DATA="$data" \
+      core_wire >/dev/null
+  )
+
+  if rg -q 'capturedAt: ["'\"']2026-07["'\"']' "$data" \
+    && rg -q 'preview: ["'\"']/assets/labs360/previews/test-quebec\.webp["'\"']' "$data" \
+    && rg -Fq 'previewWidth: 1600' "$data" \
+    && rg -Fq 'previewHeight: 800' "$data"; then
+    pass "le câblage ajoute date et aperçu optimisé"
+  else
+    fail "le câblage doit respecter le nouveau contrat d’aperçu"
+  fi
+}
+
+test_preview_helper_creates_bounded_webp() {
+  local case_dir="$TMP_ROOT/preview-helper" output="" status=0 width="" height=""
+  mkdir -p "$case_dir"
+  output="$(
+    . "$ROOT/scripts/iso360-core.sh"
+    core_make_preview \
+      "$ROOT/public/favicon.png" \
+      "$case_dir/preview.webp"
+  )" || status=$?
+  IFS='|' read -r width height <<< "$output"
+
+  if [ "$status" -eq 0 ] \
+    && [ -s "$case_dir/preview.webp" ] \
+    && [ "$width" -gt 0 ] \
+    && [ "$width" -le 1600 ] \
+    && [ "$height" -gt 0 ] \
+    && [ "$(stat -f%z "$case_dir/preview.webp")" -lt 358400 ]; then
+    pass "le helper produit un aperçu WebP borné avec ses dimensions"
+  else
+    printf '  sortie=%s status=%s\n' "$output" "$status" >&2
+    fail "le helper doit produire un aperçu WebP valide"
+  fi
+}
+
+test_publishers_generate_and_commit_previews() {
+  if rg -Fq 'core_make_preview' "$ROOT/scripts/iso360.sh" \
+    && rg -Fq 'PREVIEW_URL=' "$ROOT/scripts/iso360.sh" \
+    && rg -Fq 'core_make_preview' "$ROOT/scripts/iso-ingest.sh" \
+    && rg -Fq 'PREVIEW_URL=' "$ROOT/scripts/iso-ingest.sh" \
+    && rg -Fq 'preview_file="${8:-}"' "$ROOT/scripts/iso360-core.sh" \
+    && rg -Fq 'git add -- "$data_file" "$preview_file"' "$ROOT/scripts/iso360-core.sh"; then
+    pass "les deux pipelines génèrent et committent les aperçus"
+  else
+    fail "les pipelines doivent générer et committer chaque aperçu"
   fi
 }
 
@@ -548,6 +601,10 @@ test_commit_failure_keeps_original() {
       printf '{"lat":46.81,"lon":-71.20,"dt":"2026:07:23","ym":"2026-07","name":"Test","city":"quebec","id":"test"}\n'
     }
     core_publish_verify() { return 0; }
+    core_make_preview() {
+      printf 'preview\n' > "$2"
+      printf '1600|900\n'
+    }
     core_wire() { return 0; }
     core_build_guard() { return 0; }
     core_commit_push() { return 1; }
@@ -595,6 +652,10 @@ test_archive_retry_does_not_republish() {
     core_publish_verify() {
       printf 'publish\n' >> "$case_dir/publish.count"
       return 0
+    }
+    core_make_preview() {
+      printf 'preview\n' > "$2"
+      printf '1600|900\n'
     }
     core_wire() {
       printf '// %s\n' "$WIRE_NOTE" >> "$DATA"
@@ -802,7 +863,10 @@ test_git_commit_failure_propagates
 test_git_add_and_push_failures_propagate
 test_real_git_commit_succeeds
 test_push_targets_head_to_main_explicitly
-test_hidden_montreal_media_skips_misleading_live_poll
+test_montreal_is_rejected_before_publication
+test_wire_includes_preview_contract
+test_preview_helper_creates_bounded_webp
+test_publishers_generate_and_commit_previews
 test_unique_helpers
 test_ingest_can_be_sourced_without_running
 test_stale_lock_is_recovered

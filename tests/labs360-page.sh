@@ -14,14 +14,16 @@ pass(){ PASS=$((PASS + 1)); printf 'ok - %s\n' "$1"; }
 fail(){ FAIL=$((FAIL + 1)); printf 'not ok - %s\n' "$1" >&2; }
 
 has_exact_real_quebec_places() {
-  local data="$1" expected removed id ids places quebec_city_count
+  local data="$1" expected removed id ids places quebec_city_count id_count
   expected="maizerets patro-roc-amadour giffard centre-monseigneur-marcoux limoilou colline-parlementaire"
   removed="vieux-quebec chute-montmorency ile-orleans vieux-port mont-royal centre-ville"
   places="$(sed -n '/^export const PLACES: Labs360Place\[\] = \[$/,/^[[:space:]]*\/\/ iso360:insert/p' "$data")"
   ids="$(printf '%s\n' "$places" | sed -n "s/^[[:space:]]*id: ['\"]\([^'\"]*\)['\"],$/\1/p")"
   quebec_city_count="$(printf '%s\n' "$places" | sed -n "s/^[[:space:]]*city: ['\"]quebec['\"],$/quebec/p" | awk 'NF { count++ } END { print count + 0 }')"
+  id_count="$(printf '%s\n' "$ids" | awk 'NF { count++ } END { print count + 0 }')"
 
-  [ "$quebec_city_count" -eq 6 ] || return 1
+  [ "$quebec_city_count" -eq 6 ] && [ "$id_count" -eq 6 ] || return 1
+  ! printf '%s\n' "$places" | rg -q "city: ['\"]montreal['\"]" || return 1
 
   for id in $expected; do
     printf '%s\n' "$ids" | rg -qx -- "$id" || return 1
@@ -45,10 +47,10 @@ test_real_quebec_places_only() {
     type: "photo", name: "Test",\
     desc: { fr: "Test", en: "Test" }, credit: "", lat: 45.5, lon: -73.6, media: "test.jpg",\
   },' "$fixture"
-  has_exact_real_quebec_places "$fixture" || {
+  if has_exact_real_quebec_places "$fixture"; then
     rm -f "$fixture" "$fixture.bak"
-    fail "une future entrée Montréal demeure permise"; return;
-  }
+    fail "une future entrée Montréal doit être refusée"; return;
+  fi
   for removed_id in vieux-quebec chute-montmorency ile-orleans vieux-port mont-royal centre-ville; do
     cp "$DATA" "$fixture"
     sed -i.bak "/\\/\\/ iso360:insert/i\\
@@ -76,7 +78,7 @@ test_real_quebec_places_only() {
     fail "un septième lieu Québec doit faire échouer le contrat"; return;
   fi
   rm -f "$fixture" "$fixture.bak"
-  pass "les lieux visibles sont exactement les six Québec; Montréal futur est permis"
+  pass "les lieux visibles sont exactement les six Québec; Montréal est refusé"
 }
 
 test_real_place_metadata_and_previews() {

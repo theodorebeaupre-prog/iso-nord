@@ -12,6 +12,43 @@ core_ok(){ printf '\033[32m✓\033[0m %s\n' "$*" >&2; }
 core_info(){ printf '\033[36m•\033[0m %s\n' "$*" >&2; }
 core_warn(){ printf '\033[33m⚠ %s\033[0m\n' "$*" >&2; }
 
+# Labs 360 est une collection éditoriale de Québec seulement. Ce garde doit être
+# appelé immédiatement après le géocodage, avant toute copie ou mutation.
+core_require_quebec() {
+  [[ "${1:-}" == "quebec" ]] || {
+    core_warn "Labs 360 publie Québec seulement; destination refusée."
+    return 1
+  }
+}
+
+# core_make_preview <source> <destination.webp> → "WIDTH|HEIGHT"
+# `cwebp` vient du paquet Homebrew `webp`. La qualité baisse seulement si le
+# budget de 350 Ko l’exige.
+core_make_preview() {
+  local source="$1" destination="$2" quality="" size=0 width="" height=""
+  command -v cwebp >/dev/null 2>&1 || {
+    core_warn "cwebp est requis pour générer l’aperçu WebP (brew install webp)."
+    return 1
+  }
+  for quality in 78 70 62 54; do
+    cwebp -quiet -resize 1600 0 -q "$quality" \
+      "$source" -o "$destination" >/dev/null 2>&1 || continue
+    size=$(stat -f%z "$destination" 2>/dev/null || printf '0')
+    [[ "$size" -gt 0 && "$size" -lt 358400 ]] && break
+  done
+  [[ "$size" -gt 0 && "$size" -lt 358400 ]] || {
+    core_warn "Impossible de produire un aperçu WebP sous 350 Ko."
+    return 1
+  }
+  width=$(sips -g pixelWidth "$destination" 2>/dev/null | awk '/pixelWidth/{print $2}')
+  height=$(sips -g pixelHeight "$destination" 2>/dev/null | awk '/pixelHeight/{print $2}')
+  [[ "$width" -gt 0 && "$height" -gt 0 ]] || {
+    core_warn "Dimensions de l’aperçu WebP illisibles."
+    return 1
+  }
+  printf '%s|%s\n' "$width" "$height"
+}
+
 # core_extract_meta <file> → "LAT|LON|DT" (champs vides si absents)
 # Le séparateur non blanc est volontaire : `read` fusionne les espaces et ne peut
 # pas distinguer « GPS vide + date avec espaces » sous le Bash 3.2 de macOS.
@@ -254,6 +291,10 @@ g=json.loads(os.environ['GEO_JSON'])
 url=os.environ['MEDIA_URL']; rep=os.environ.get('REPLACE','').strip()
 path=os.environ['DATA']; typ=os.environ.get('PTYPE','360')
 poster=os.environ.get('POSTER_URL','').strip()
+preview=os.environ.get('PREVIEW_URL','').strip()
+captured=os.environ.get('CAPTURED_AT') or g.get('ym') or ''
+preview_width=int(os.environ.get('PREVIEW_WIDTH') or 0)
+preview_height=int(os.environ.get('PREVIEW_HEIGHT') or 0)
 note=os.environ.get('WIRE_NOTE','Auto-publié')
 src=open(path,encoding='utf-8').read()
 if rep:
@@ -262,6 +303,8 @@ if rep:
     src=pat.sub(lambda m: m.group(1)+json.dumps(url), src, count=1)
     open(path,'w',encoding='utf-8').write(src); print(f"replaced:{rep}")
 else:
+    if not preview or not captured or preview_width < 1 or preview_height < 1:
+        raise SystemExit("Aperçu, dimensions ou date de captation manquants")
     nm=json.dumps(g['name'])
     dfr=json.dumps(f"{g['name']} — vue aérienne captée au drone.")
     den=json.dumps(f"{g['name']} — aerial view captured by drone.")
@@ -270,9 +313,14 @@ else:
     poster_line=f"    poster: {json.dumps(poster)},\n" if poster else ""
     block=(f"  {{\n    id: {json.dumps(g['id'])},\n    city: {json.dumps(g['city'])},\n"
            f"    type: {json.dumps(typ)},\n    name: {nm},\n    desc: {{\n      fr: {dfr},\n      en: {den},\n    }},\n"
-           f"    credit: '',\n    lat: {lat}, lon: {lon},\n"
+           f"    credit: '',\n    capturedAt: {json.dumps(captured)},\n"
+           f"    lat: {lat}, lon: {lon},\n"
            f"    // {note} ({g.get('dt','')})\n"
-           f"    media: {json.dumps(url)},\n{poster_line}  }},\n")
+           f"    media: {json.dumps(url)},\n"
+           f"    preview: {json.dumps(preview)},\n"
+           f"    previewWidth: {preview_width},\n"
+           f"    previewHeight: {preview_height},\n"
+           f"{poster_line}  }},\n")
     marker="  // iso360:insert"
     if marker not in src: raise SystemExit("Marqueur iso360:insert absent de labs360.ts")
     src=src.replace(marker, block+marker, 1)
@@ -302,18 +350,37 @@ core_build_guard() {
   core_ok "Build OK (10 pages)"
 }
 
-# core_commit_push <data_file> <verb> <name> <push> <live_page> <filename> [city]
+# core_commit_push <data_file> <verb> <name> <push> <live_page> <filename> [city] [preview_file]
 # NB : MEDIA_BASE_URL doit être exporté par l'appelant (réchauffe le cache edge).
 core_commit_push() {
-  local data_file="$1" verb="$2" name="$3" push="$4" live_page="$5" filename="$6" city="${7:-quebec}"
-  local before_head attempt body
+  local data_file="$1" verb="$2" name="$3" push="$4" live_page="$5" filename="$6" city="${7:-quebec}" preview_file="${8:-}"
+  local before_head attempt body commit_failed=0
   core_require_main_branch . || return 1
   before_head="$(git rev-parse HEAD)" || { core_warn "Impossible de lire HEAD"; return 1; }
-  git add -- "$data_file" || { core_warn "git add a échoué"; return 1; }
-  if ! git commit -q --only -m "feat(labs360): $verb '$name' (iso-ingest, auto-geo)
+  if [[ -n "$preview_file" ]]; then
+    git add -- "$data_file" "$preview_file" || { core_warn "git add a échoué"; return 1; }
+  else
+    git add -- "$data_file" || { core_warn "git add a échoué"; return 1; }
+  fi
+  if [[ -n "$preview_file" ]]; then
+    if ! git commit -q --only -m "feat(labs360): $verb '$name' (iso-ingest, auto-geo)
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" -- "$data_file" "$preview_file"; then
+      commit_failed=1
+    fi
+  else
+    if ! git commit -q --only -m "feat(labs360): $verb '$name' (iso-ingest, auto-geo)
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" -- "$data_file"; then
-    git reset -q -- "$data_file" 2>/dev/null || true
+      commit_failed=1
+    fi
+  fi
+  if [[ "$commit_failed" == "1" ]]; then
+    if [[ -n "$preview_file" ]]; then
+      git reset -q -- "$data_file" "$preview_file" 2>/dev/null || true
+    else
+      git reset -q -- "$data_file" 2>/dev/null || true
+    fi
     core_warn "git commit a échoué"
     return 1
   fi
@@ -325,10 +392,6 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" -- "$data_file"; then
     return 1
   fi
   core_ok "Poussé → déploiement Vercel en cours"
-  if [[ "$city" == "montreal" ]]; then
-    core_b "Média Montréal invisible sur la page actuelle : push confirmé, mais pas de preuve de déploiement live possible."
-    return 0
-  fi
   attempt=1
   while [[ "$attempt" -le "${ISO_NORD_DEPLOY_ATTEMPTS:-18}" ]]; do
     body=$(curl --silent --show-error --connect-timeout "${ISO_NORD_CURL_CONNECT_TIMEOUT:-5}" \

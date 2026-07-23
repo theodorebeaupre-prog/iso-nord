@@ -32,6 +32,7 @@ LOCK="$MEDIA_ROOT/inbox.lock"
 export MEDIA_BASE_URL="https://media.theo-picture.com"   # utilisé par core_commit_push
 LIVE_PAGE="https://theo-picture.com/labs/360"
 DATA_FILE="$REPO/src/data/labs360.ts"
+PREVIEW_DIR="$REPO/public/assets/labs360/previews"
 
 DRY=0; PUSH=1
 if [[ "${ISO_NORD_INGEST_SOURCE_ONLY:-0}" != "1" ]]; then
@@ -375,6 +376,7 @@ process(){
   local geo="" geo_error="" gname="" gid="" gym="" gcity=""
   local work="" destdir="" filename="" ext="" poster_url="" poster_local=""
   local outfile="" poster_file="" media_url="" snapshot="" job_id="" job_state=""
+  local preview_source="" preview_file="" preview_path="" preview_dims="" preview_width="" preview_height=""
   base=$(basename "$f")
   if ! job_id="$(ensure_job_marker "$f")"; then
     log "ÉCHEC : impossible de créer/lire le marqueur durable pour $base"
@@ -444,6 +446,10 @@ process(){
   gid=$(printf '%s' "$geo" | python3 -c 'import json,sys;print(json.load(sys.stdin)["id"])') || return 1
   gym=$(printf '%s' "$geo" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("ym") or "")') || return 1
   gcity=$(printf '%s' "$geo" | python3 -c 'import json,sys;print(json.load(sys.stdin)["city"])') || return 1
+  if ! core_require_quebec "$gcity"; then
+    quarantine "$f" "Labs 360 publie Québec seulement; destination refusée."
+    return $?
+  fi
   [[ -n "$gym" ]] || gym=$(date +%Y-%m)
   gid="$(core_unique_place_id "$DATA_FILE" "$gid")" || return 1
   geo="$(core_set_geo_id "$geo" "$gid")" || return 1
@@ -494,9 +500,26 @@ process(){
     return 1
   fi
 
+  preview_source="$outfile"
+  [[ -n "$poster_local" ]] && preview_source="$poster_local"
+  preview_file="${gid}-${gym}.webp"
+  preview_path="$PREVIEW_DIR/$preview_file"
+  mkdir -p "$PREVIEW_DIR" || {
+    rm -rf "$work"
+    log "ÉCHEC : dossier des aperçus inaccessible"
+    return 1
+  }
+  if ! preview_dims="$(core_make_preview "$preview_source" "$preview_path")"; then
+    rm -rf "$work"
+    log "ÉCHEC : aperçu WebP impossible; $base laissé dans inbox/"
+    return 1
+  fi
+  IFS='|' read -r preview_width preview_height <<< "$preview_dims"
+
   # Publier le média (+ poster vidéo)
   cd "$REPO"
   if ! core_publish_verify "$outfile" "$destdir" "$MEDIA_BASE_URL/$(basename "$destdir")" "$filename"; then
+    rm -f "$preview_path"
     rm -rf "$work"
     log "ÉCHEC publication : $base laissé dans inbox/ (tunnel/Caddy ?)"
     return 1
@@ -506,6 +529,7 @@ process(){
     if core_publish_verify "$poster_local" "$MEDIA_ROOT/photos" "$MEDIA_BASE_URL/photos" "$poster_file"; then
       poster_url="$MEDIA_BASE_URL/photos/$poster_file"
     else
+      rm -f "$preview_path"
       rm -rf "$work"
       log "ÉCHEC publication poster : $base laissé dans inbox/"
       return 1
@@ -516,20 +540,25 @@ process(){
   # Câbler labs360.ts
   snapshot="$(mktemp "${TMPDIR:-/tmp}/iso-ingest-data.XXXXXX")"
   cp "$DATA_FILE" "$snapshot" || {
+    rm -f "$preview_path"
     rm -f "$snapshot"
     log "ÉCHEC sauvegarde de labs360.ts : $base laissé dans inbox/"
     return 1
   }
   if ! mark_job_wiring "$f"; then
+    rm -f "$preview_path"
     rm -f "$snapshot"
     log "ÉCHEC état de reprise : $base laissé dans inbox-processing/"
     return 1
   fi
   media_url="$MEDIA_BASE_URL/$(basename "$destdir")/$filename"
   if ! GEO_JSON="$geo" MEDIA_URL="$media_url" PTYPE="$ptype" POSTER_URL="$poster_url" \
+       PREVIEW_URL="/assets/labs360/previews/$preview_file" \
+       PREVIEW_WIDTH="$preview_width" PREVIEW_HEIGHT="$preview_height" CAPTURED_AT="$gym" \
        REPLACE="" WIRE_NOTE="Auto-publié par iso-ingest; ingest-job:$job_id" \
        DATA="$DATA_FILE" core_wire; then
     cp "$snapshot" "$DATA_FILE"
+    rm -f "$preview_path"
     rm -f "$snapshot"
     log "ÉCHEC câblage : $base (marqueur iso360:insert absent ?)"
     return 1
@@ -537,15 +566,17 @@ process(){
 
   # Build garde-fou
   if ! core_build_guard "$DATA_FILE" "$snapshot"; then
+    rm -f "$preview_path"
     rm -f "$snapshot"
     log "ÉCHEC build : labs360.ts restauré, $base laissé dans inbox/"
     return 1
   fi
 
   # Commit + push
-  if ! core_commit_push "$DATA_FILE" "add" "$gname" "$PUSH" "$LIVE_PAGE" "$filename" "$gcity"; then
-    git -C "$REPO" reset -q -- "$DATA_FILE" 2>/dev/null || true
+  if ! core_commit_push "$DATA_FILE" "add" "$gname" "$PUSH" "$LIVE_PAGE" "$filename" "$gcity" "$preview_path"; then
+    git -C "$REPO" reset -q -- "$DATA_FILE" "$preview_path" 2>/dev/null || true
     cp "$snapshot" "$DATA_FILE"
+    rm -f "$preview_path"
     rm -f "$snapshot"
     log "ÉCHEC commit/push : labs360.ts restauré, $base laissé dans inbox/"
     return 1
