@@ -22,6 +22,8 @@
   <dict>
     <key>PATH</key>
     <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>SSL_CERT_FILE</key>
+    <string>/usr/local/etc/ca-certificates/cert.pem</string>
   </dict>
 
   <key>StandardOutPath</key>

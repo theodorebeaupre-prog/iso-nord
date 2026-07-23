@@ -251,7 +251,11 @@ launchctl load ~/Library/LaunchAgents/com.iso-nord.inbox.plist
 **Dépannage :** logs dans `inbox.log` (+ `inbox-launchd.err.log`). Rien ne se passe →
 `launchctl list | grep iso-nord`. GPS manquant → voir `inbox-corriger/`. URL 200 KO →
 tunnel/Caddy (cf §3). Le plist du Mac Pro Intel utilise `/usr/local/bin` pour
-Homebrew. Son script pointe vers le clone NAS `/Volumes/SSD 1/iso-nord`.
+Homebrew et fournit `SSL_CERT_FILE=/usr/local/etc/ca-certificates/cert.pem` à
+Python; sans cette variable, Python Homebrew 3.14 cherche le bundle absent
+`/usr/local/etc/openssl@3/cert.pem` et Nominatim échoue avec
+`CERTIFICATE_VERIFY_FAILED`. Son script pointe vers le clone NAS
+`/Volumes/SSD 1/iso-nord`.
 Le verrou protège aussi sa fenêtre d'initialisation et valide boot + PID + heure de
 départ du processus avant de considérer un propriétaire vivant; reboot et PID
 réutilisé ne bloquent donc pas la boîte indéfiniment.

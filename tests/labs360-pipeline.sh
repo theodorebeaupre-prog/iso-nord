@@ -116,6 +116,21 @@ test_geocode_outage_fails() {
   fi
 }
 
+test_launchagent_sets_homebrew_ca_bundle() {
+  local actual
+  actual="$(/usr/libexec/PlistBuddy \
+    -c 'Print :EnvironmentVariables:SSL_CERT_FILE' \
+    "$ROOT/launchd/com.iso-nord.inbox.plist" 2>/dev/null || true)"
+
+  if [ "$actual" = "/usr/local/etc/ca-certificates/cert.pem" ]; then
+    pass "le LaunchAgent fournit le bundle CA Homebrew à Python"
+  else
+    printf '  attendu: %s\n  obtenu:  %s\n' \
+      "/usr/local/etc/ca-certificates/cert.pem" "${actual:-<absent>}" >&2
+    fail "le LaunchAgent fournit le bundle CA Homebrew à Python"
+  fi
+}
+
 test_publish_never_overwrites() {
   local case_dir="$TMP_ROOT/publish-no-overwrite"
   mkdir -p "$case_dir/dest" "$case_dir/bin"
@@ -745,6 +760,7 @@ test_dry_run_processes_without_publishing() {
 test_extract_meta_preserves_empty_gps_and_spaced_date
 test_photo_without_gps_or_date_uses_filename_fallback
 test_geocode_outage_fails
+test_launchagent_sets_homebrew_ca_bundle
 test_publish_never_overwrites
 test_publish_curl_is_bounded
 test_published_media_is_world_readable

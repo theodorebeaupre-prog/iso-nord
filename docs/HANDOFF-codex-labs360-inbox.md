@@ -117,6 +117,7 @@ command -v exiftool
 command -v ffmpeg
 exiftool -ver
 ffmpeg -version | head -1
+test -r /usr/local/etc/ca-certificates/cert.pem
 
 npm ci
 git diff --exit-code -- package-lock.json
