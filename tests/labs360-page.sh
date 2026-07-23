@@ -6,6 +6,7 @@ PAGE="${PAGE:-$ROOT/src/components/pages/Labs360.astro}"
 UI="${UI:-$ROOT/src/i18n/ui.ts}"
 SCRIPT="${SCRIPT:-$ROOT/src/scripts/labs360.js}"
 MAP_HELPER="${MAP_HELPER:-$ROOT/src/scripts/labs360-map.js}"
+MOTION_HELPER="${MOTION_HELPER:-$ROOT/src/scripts/labs360-motion.js}"
 PASS=0
 FAIL=0
 pass(){ PASS=$((PASS + 1)); printf 'ok - %s\n' "$1"; }
@@ -142,7 +143,37 @@ test_targeted_polish_contract() {
   rg -Uq '@media \(prefers-reduced-motion: reduce\)' "$PAGE" || {
     fail "le composant respecte reduced-motion"; return;
   }
+  rg -Fq ':global(.l360-nav__link)' "$PAGE" || {
+    fail "le LangSwitch enfant reçoit aussi la cible tactile de navigation"; return;
+  }
+  rg -Uq '\.l360-nav__home, \.l360-nav__link, :global\(\.l360-nav__link\) \{[^}]*min-width: 44px;[^}]*min-height: 44px;' "$PAGE" || {
+    fail "tous les liens de navigation ont une cible 44 par 44"; return;
+  }
   pass "le polish ciblé respecte tactile, focus et responsive"
+}
+
+test_reduced_motion_modal_opens_instantly() {
+  rg -Fq "import { shouldAnimateModalOpen } from './labs360-motion.js';" "$SCRIPT" || {
+    fail "la modale utilise la politique de mouvement testable"; return;
+  }
+  node --input-type=module - "$MOTION_HELPER" <<'NODE'
+import assert from 'node:assert/strict';
+const { shouldAnimateModalOpen } = await import(`file://${process.argv[2]}`);
+
+assert.equal(shouldAnimateModalOpen(true, true), false);
+assert.equal(shouldAnimateModalOpen(true, false), false);
+assert.equal(shouldAnimateModalOpen(false, false), true);
+assert.equal(shouldAnimateModalOpen(false, true), true);
+NODE
+  [ "$?" -eq 0 ] || {
+    fail "reduced-motion ouvre la modale sans animation"; return;
+  }
+  rg -Fq 'if (!shouldAnimateModalOpen(reducedMotion, trigger)) {' "$SCRIPT" &&
+    rg -Fq 'gsap.set(backdrop, { opacity: 0.92 });' "$SCRIPT" &&
+    rg -Fq 'gsap.set(panel, { opacity: 1, scale: 1 });' "$SCRIPT" || {
+    fail "la branche instantanée fixe directement l’état final"; return;
+  }
+  pass "reduced-motion ouvre réellement la modale instantanément"
 }
 
 test_real_quebec_places_only
@@ -151,5 +182,6 @@ test_labs_project_copy_quebec_only
 test_quebec_only_map_logic
 test_region_for_places
 test_targeted_polish_contract
+test_reduced_motion_modal_opens_instantly
 printf '\n%s réussite(s), %s échec(s)\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

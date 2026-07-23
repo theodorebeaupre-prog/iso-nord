@@ -34,7 +34,7 @@ Serveur local : `npm run dev -- --host 127.0.0.1`.
 - Capture pleine page inspectée dans la session.
 - URL historique `/labs/360#montreal` conserve la page Québec normalement.
 - 6 lignes de légende, aucun sélecteur, aucune mention Montréal.
-- 6 annotations visibles dans la capture FR.
+- Les six lieux sont présents dans le fallback; MapKit n'est pas validé localement.
 - Carte après correction : 350 × 523 px, aucun overflow horizontal.
 - Chaque ligne de légende : 350 × 64 px; `touch-action: manipulation`.
 - Maizerets ouvre Pannellum : titre, host panorama et indice de drag présents.
@@ -92,8 +92,59 @@ sortie vide, code 0
 
 ## Préoccupation résiduelle
 
-La validation locale ne peut pas confirmer la disponibilité des tuiles MapKit
-EN : l'origine `localhost` est volontairement refusée par le token. Le fallback
-et les six entrées restent fonctionnels; la capture FR a affiché les six
-annotations avant expiration d'un état MapKit déjà autorisé. Le cadrage
-géographique lui-même est couvert par les tests de `regionForPlaces`.
+La validation locale ne peut confirmer ni les tuiles ni les annotations MapKit :
+l'origine `localhost` est volontairement refusée par le token. Le fallback et
+les six entrées restent fonctionnels. Le cadrage géographique lui-même est
+couvert par les tests de `regionForPlaces`.
+
+## Correctifs après review
+
+### Cibles de navigation
+
+Le premier rapport affirmait trop largement que tous les liens de navigation
+avaient une cible tactile complète. `LangSwitch` est un composant Astro enfant :
+la classe reçue n'était pas couverte par le sélecteur scoped du parent. La
+mesure initiale à 390 × 844 confirmait :
+
+```text
+ISO Nord   61.55 × 44 px
+Labs       32.12 × 44 px
+Portfolio  70.70 × 44 px
+EN         16.84 × 44 px
+```
+
+Le sélecteur utilise maintenant `:global(.l360-nav__link)` de façon ciblée et
+fixe `min-width`/`min-height` à 44 px. Mesures finales dans le navigateur :
+
+```text
+ISO Nord   61.55 × 44 px
+Labs       44.00 × 44 px
+Portfolio  70.70 × 44 px
+EN         44.00 × 44 px
+```
+
+`touch-action: manipulation` est calculé sur les quatre liens. La navigation
+fait 375 px, et la page ne produit aucun débordement horizontal à 390 px.
+
+### Ouverture en mouvement réduit
+
+La branche d'ouverture réduite appelait auparavant deux animations GSAP malgré
+la préférence système. La politique est désormais isolée dans
+`labs360-motion.js` et testée en Node :
+
+- `reducedMotion=true` → aucune animation, avec ou sans déclencheur;
+- `reducedMotion=false` → animation conservée;
+- la branche réduite fixe immédiatement l'opacité et l'échelle finales avec
+  `gsap.set`;
+- la fermeture réduite demeure instantanée.
+
+Le cycle RED/GREEN a été observé : le test échouait d'abord sur l'import absent,
+puis passe avec la politique utilisée par `labs360.js`.
+
+### Gate MapKit live obligatoire
+
+**Post-push requis :** ouvrir `/labs/360` et `/en/labs/360` sur le domaine de
+production, confirmer que les six annotations MapKit et les tuiles satellite
+sont visibles, puis vérifier le cadrage des six lieux. La vérification locale ne
+valide pas MapKit et ne doit jamais être rapportée comme telle, puisque le token
+refuse volontairement `localhost`.

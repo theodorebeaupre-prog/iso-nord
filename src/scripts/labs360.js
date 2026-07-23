@@ -14,6 +14,7 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
 import { regionForPlaces } from './labs360-map.js';
+import { shouldAnimateModalOpen } from './labs360-motion.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -218,7 +219,10 @@ function openModal(placeId, trigger) {
   document.body.style.overflow = 'hidden';
   mountMedia(place);
 
-  if (reducedMotion || !trigger) {
+  if (!shouldAnimateModalOpen(reducedMotion, trigger)) {
+    gsap.set(backdrop, { opacity: 0.92 });
+    gsap.set(panel, { opacity: 1, scale: 1 });
+  } else if (!trigger) {
     // Clic depuis la carte (pas d'élément d'origine) → simple fondu + zoom.
     gsap.fromTo(backdrop, { opacity: 0 }, { opacity: 0.92, duration: 0.3, ease: 'power2.out' });
     gsap.fromTo(panel, { opacity: 0, scale: 0.94 }, { opacity: 1, scale: 1, duration: 0.4, ease: 'power3.out' });

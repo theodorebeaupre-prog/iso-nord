@@ -187,9 +187,11 @@ const runtime = {
         align-items: center;
         padding: clamp(1.4rem, 3vw, 2.2rem) clamp(1.25rem, 5vw, 6rem);
       }
-      .l360-nav__home, .l360-nav__link {
+      .l360-nav__home, .l360-nav__link, :global(.l360-nav__link) {
         display: inline-flex;
         align-items: center;
+        justify-content: center;
+        min-width: 44px;
         min-height: 44px;
         font-family: var(--font-label);
         font-size: 0.66rem;
@@ -199,9 +201,11 @@ const runtime = {
         transition: color 0.3s ease;
         touch-action: manipulation;
       }
-      .l360-nav__link { color: var(--muted); }
+      .l360-nav__link, :global(.l360-nav__link) { color: var(--muted); }
       .l360-nav__links { display: flex; align-items: center; gap: clamp(1.1rem, 3vw, 2rem); }
-      .l360-nav__home:hover, .l360-nav__link:hover { color: var(--accent); }
+      .l360-nav__home:hover,
+      .l360-nav__link:hover,
+      :global(.l360-nav__link:hover) { color: var(--accent); }
 
       /* ── Hero ── */
       .l360-hero {
@@ -444,6 +448,7 @@ const runtime = {
       @media (prefers-reduced-motion: reduce) {
         .l360-nav__home,
         .l360-nav__link,
+        :global(.l360-nav__link),
         .l360-marker,
         .l360-legend__item,
         .l360-modal__close,
