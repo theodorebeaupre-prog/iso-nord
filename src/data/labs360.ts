@@ -154,5 +154,19 @@ export const PLACES: Labs360Place[] = [
     media: '/assets/hero-camera.mp4',
     poster: '/assets/portfolio/ville-heure-bleue.jpeg',
   },
+  {
+    id: "giffard",
+    city: "quebec",
+    type: '360',
+    name: "Giffard",
+    desc: {
+      fr: "Giffard \u2014 vue a\u00e9rienne capt\u00e9e au drone.",
+      en: "Giffard \u2014 aerial view captured by drone.",
+    },
+    credit: '',
+    lat: 46.849922222222226, lon: -71.21155555555556,
+    // Pano drone auto-publié par iso360 (2025:10:25 13:07:26)
+    media: "https://media.theo-picture.com/panoramas/giffard-2025-10.jpg",
+  },
   // iso360:insert — les nouveaux lieux publiés par `iso360` s'insèrent au-dessus de cette ligne
 ];
