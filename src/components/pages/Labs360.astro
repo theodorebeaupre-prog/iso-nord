@@ -188,12 +188,16 @@ const runtime = {
         padding: clamp(1.4rem, 3vw, 2.2rem) clamp(1.25rem, 5vw, 6rem);
       }
       .l360-nav__home, .l360-nav__link {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
         font-family: var(--font-label);
         font-size: 0.66rem;
         letter-spacing: 0.34em;
         text-transform: uppercase;
         color: var(--text);
         transition: color 0.3s ease;
+        touch-action: manipulation;
       }
       .l360-nav__link { color: var(--muted); }
       .l360-nav__links { display: flex; align-items: center; gap: clamp(1.1rem, 3vw, 2rem); }
@@ -201,7 +205,7 @@ const runtime = {
 
       /* ── Hero ── */
       .l360-hero {
-        padding: clamp(7rem, 18vh, 11rem) 0 clamp(2.5rem, 6vw, 4rem);
+        padding: clamp(7rem, 16vh, 10rem) 0 clamp(2rem, 5vw, 3.5rem);
       }
       .l360-eyebrow {
         font-family: var(--font-label);
@@ -228,8 +232,13 @@ const runtime = {
       }
 
       /* ── Carte ── */
+      .l360-map-section {
+        padding-bottom: clamp(5rem, 10vw, 9rem);
+      }
       .l360-map {
         position: relative;
+        width: 100%;
+        min-height: clamp(30rem, 68vh, 48rem);
         aspect-ratio: 4 / 5;               /* mobile-first : carte haute */
         background:
           radial-gradient(120% 90% at 30% 20%, #1a1920 0%, var(--surface) 55%, #121117 100%);
@@ -269,11 +278,16 @@ const runtime = {
       }
 
       /* ── Légende ── */
-      .l360-legend { list-style: none; margin: var(--s-lg) 0 0; padding: 0; }
+      .l360-legend {
+        list-style: none;
+        margin: clamp(1.25rem, 3vw, 2rem) 0 0;
+        padding: 0;
+      }
       .l360-legend__item {
         appearance: none; background: none; border: 0; cursor: pointer;
         display: flex; align-items: baseline; gap: var(--s-md);
         width: 100%;
+        min-height: 4rem;
         padding: 0.85rem 0;
         border-top: 1px solid var(--border);
         font-family: var(--font-label);
@@ -282,9 +296,14 @@ const runtime = {
         color: var(--muted);
         transition: color 0.3s ease;
         text-align: left;
+        touch-action: manipulation;
       }
       .l360-legend li:last-child .l360-legend__item { border-bottom: 1px solid var(--border); }
       .l360-legend__item:hover { color: var(--text); }
+      .l360-legend__item:focus-visible {
+        outline: 1px solid var(--accent);
+        outline-offset: 4px;
+      }
       .l360-legend__num { font-size: 0.66rem; color: var(--dim); }
       .l360-legend__name { font-size: 0.85rem; }
       .l360-legend__badge { font-size: 0.66rem; }
@@ -321,6 +340,7 @@ const runtime = {
         font-size: 1.4rem; line-height: 1;
         cursor: pointer;
         transition: color 0.3s ease, border-color 0.3s ease;
+        touch-action: manipulation;
       }
       .l360-modal__close:hover { color: var(--accent); border-color: var(--accent); }
 
@@ -407,11 +427,38 @@ const runtime = {
         color: var(--dim);
         transition: color 0.3s ease;
       }
+      .l360-footer__meta a {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+        touch-action: manipulation;
+      }
       .l360-footer__meta a:hover { color: var(--accent); }
 
       @media (max-width: 640px) {
+        .l360-map { min-height: 28rem; height: 62svh; }
         .l360-footer__row { flex-direction: column; }
         .l360-footer__meta { align-items: flex-start; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .l360-nav__home,
+        .l360-nav__link,
+        .l360-marker,
+        .l360-legend__item,
+        .l360-modal__close,
+        .l360-footer__meta a {
+          transition: none;
+        }
+
+        .l360-eyebrow,
+        .l360-title,
+        .l360-lede,
+        .l360-map,
+        .l360-legend {
+          opacity: 1;
+          transform: none;
+        }
       }
     </style>
   </body>

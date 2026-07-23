@@ -117,10 +117,39 @@ NODE
   pass "regionForPlaces calcule les cadrages vide, seul et six lieux"
 }
 
+test_targeted_polish_contract() {
+  rg -Uq '\.l360-hero \{[^}]*padding: clamp\(7rem, 16vh, 10rem\) 0 clamp\(2rem, 5vw, 3\.5rem\);' "$PAGE" || {
+    fail "le hero utilise le rythme vertical ciblé"; return;
+  }
+  rg -Uq '\.l360-map-section \{[^}]*padding-bottom: clamp\(5rem, 10vw, 9rem\);' "$PAGE" || {
+    fail "la section carte garde un dégagement final fluide"; return;
+  }
+  rg -Uq '\.l360-map \{[^}]*width: 100%;[^}]*min-height: clamp\(30rem, 68vh, 48rem\);' "$PAGE" || {
+    fail "la carte desktop conserve une hauteur utile"; return;
+  }
+  rg -Uq '\.l360-legend \{[^}]*margin: clamp\(1\.25rem, 3vw, 2rem\) 0 0;' "$PAGE" || {
+    fail "la légende utilise un espacement fluide"; return;
+  }
+  rg -Uq '\.l360-legend__item \{[^}]*min-height: 4rem;[^}]*touch-action: manipulation;' "$PAGE" || {
+    fail "les lignes de légende ont une cible tactile confortable"; return;
+  }
+  rg -Uq '\.l360-legend__item:focus-visible \{[^}]*outline: 1px solid var\(--accent\);[^}]*outline-offset: 4px;' "$PAGE" || {
+    fail "le focus clavier de la légende est visible"; return;
+  }
+  rg -Uq '@media \(max-width: 640px\) \{[^}]*\.l360-map \{ min-height: 28rem; height: 62svh; \}' "$PAGE" || {
+    fail "la carte mobile utilise le cadrage compact"; return;
+  }
+  rg -Uq '@media \(prefers-reduced-motion: reduce\)' "$PAGE" || {
+    fail "le composant respecte reduced-motion"; return;
+  }
+  pass "le polish ciblé respecte tactile, focus et responsive"
+}
+
 test_real_quebec_places_only
 test_quebec_only_markup_and_copy
 test_labs_project_copy_quebec_only
 test_quebec_only_map_logic
 test_region_for_places
+test_targeted_polish_contract
 printf '\n%s réussite(s), %s échec(s)\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
