@@ -43,47 +43,6 @@ export const mediaUrl = (path: string): string =>
 export const PLACES: Labs360Place[] = [
   // ── Québec ────────────────────────────────────────────────────────────────
   {
-    id: 'vieux-quebec',
-    city: 'quebec',
-    type: '360',
-    name: 'Vieux-Québec',
-    desc: {
-      fr: "Les toits du Vieux-Québec et le Château Frontenac, captés à l'aube.",
-      en: 'The rooftops of Old Québec and the Château Frontenac, captured at dawn.',
-    },
-    credit: '',
-    lat: 46.8119, lon: -71.2056,
-    // Servi depuis le Mac via Cloudflare Tunnel (SSD 1/iso-nord-media)
-    media: 'https://media.theo-picture.com/panoramas/pano-vieux-quebec-demo.jpg',
-  },
-  {
-    id: 'chute-montmorency',
-    city: 'quebec',
-    type: '360',
-    name: 'Chute Montmorency',
-    desc: {
-      fr: 'La chute et son embrun, 83 mètres au-dessus du Saint-Laurent.',
-      en: 'The falls and their mist, 83 metres above the St. Lawrence.',
-    },
-    credit: '',
-    lat: 46.8906, lon: -71.1478,
-    media: 'pano-chute-montmorency.png',
-  },
-  {
-    id: 'ile-orleans',
-    city: 'quebec',
-    type: 'video',
-    name: "Île d'Orléans",
-    desc: {
-      fr: "Survol des rives et des vergers de l'île, au fil des saisons.",
-      en: "Flying over the island's shores and orchards, season by season.",
-    },
-    credit: '',
-    lat: 46.9200, lon: -70.9700,
-    media: '/assets/hero-camera.mp4',
-    poster: '/assets/portfolio/chute-automne.jpeg',
-  },
-  {
     id: 'maizerets',
     city: 'quebec',
     type: '360',
@@ -112,48 +71,6 @@ export const PLACES: Labs360Place[] = [
     media: 'https://media.theo-picture.com/panoramas/patro-roc-amadour-2026.jpg',
   },
 
-  // ── Montréal ──────────────────────────────────────────────────────────────
-  {
-    id: 'vieux-port',
-    city: 'montreal',
-    type: '360',
-    name: 'Vieux-Port de Montréal',
-    desc: {
-      fr: 'Les quais, la grande roue et le fleuve — panorama complet du Vieux-Port.',
-      en: 'The docks, the Ferris wheel and the river — a full panorama of the Old Port.',
-    },
-    credit: '',
-    lat: 45.5075, lon: -73.5470,
-    media: 'pano-vieux-port.png',
-  },
-  {
-    id: 'mont-royal',
-    city: 'montreal',
-    type: 'video',
-    name: 'Mont-Royal',
-    desc: {
-      fr: 'La montagne et le belvédère Kondiaronk face au centre-ville.',
-      en: 'The mountain and the Kondiaronk lookout facing downtown.',
-    },
-    credit: '',
-    lat: 45.5045, lon: -73.5872,
-    media: '/assets/hero-camera.mp4',
-    poster: '/assets/portfolio/skyline-quebec.jpeg',
-  },
-  {
-    id: 'centre-ville',
-    city: 'montreal',
-    type: 'video',
-    name: 'Centre-ville de Montréal',
-    desc: {
-      fr: 'Les tours du centre-ville à l’heure bleue, en survol cinématique.',
-      en: 'Downtown towers at blue hour, in a cinematic flyover.',
-    },
-    credit: '',
-    lat: 45.5017, lon: -73.5673,
-    media: '/assets/hero-camera.mp4',
-    poster: '/assets/portfolio/ville-heure-bleue.jpeg',
-  },
   {
     id: "giffard",
     city: "quebec",
