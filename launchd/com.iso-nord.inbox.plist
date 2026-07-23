@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.iso-nord.inbox</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Volumes/SSD 1/iso-nord/scripts/iso-ingest.sh</string>
+  </array>
+
+  <!-- Déclenché quand le contenu de inbox/ change (copie SMB terminée → nouvel event). -->
+  <key>WatchPaths</key>
+  <array>
+    <string>/Volumes/SSD 1/iso-nord-media/inbox</string>
+  </array>
+
+  <!-- Homebrew Intel (exiftool, ffmpeg) + git/node/npm dans le PATH du daemon. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/Volumes/SSD 1/iso-nord-media/inbox-launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Volumes/SSD 1/iso-nord-media/inbox-launchd.err.log</string>
+
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>

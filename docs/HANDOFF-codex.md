@@ -207,6 +207,42 @@ curl -s "https://nominatim.openstreetmap.org/reverse?lat=<LAT>&lon=<LON>&format=
   -H "User-Agent: iso-nord-check"
 ```
 
+## 5bis. Boîte de dépôt automatique (iso-ingest)
+
+Déposer un fichier dans le partage SMB `/Volumes/SSD 1/iso-nord-media/inbox/`
+publie automatiquement un pin sur `/labs/360`. Sur le Mac Pro NAS **headless** :
+aucun popup — tout passe par les fichiers et le log.
+
+| Élément | Chemin |
+|---|---|
+| Dossier de dépôt (surveillé) | `/Volumes/SSD 1/iso-nord-media/inbox/` |
+| Quarantaine (GPS/type manquant) | `/Volumes/SSD 1/iso-nord-media/inbox-corriger/` |
+| Archive (originaux publiés) | `/Volumes/SSD 1/iso-nord-media/inbox-publies/` |
+| Journal | `/Volumes/SSD 1/iso-nord-media/inbox.log` |
+| Script | `scripts/iso-ingest.sh` (cœur partagé : `scripts/iso360-core.sh`) |
+| LaunchAgent | `~/Library/LaunchAgents/com.iso-nord.inbox.plist` |
+
+**Types :** `.mp4/.mov` → clip (poster ffmpeg) ; image ~2:1 → pano 360 ; autre
+image → photo (lightbox). **GPS** via exiftool ; si absent, le **nom du fichier**
+sert de repli (`chute-montmorency.jpg` géocodé, ou `46.89,-71.15.jpg` en coordonnées).
+Sans lieu fiable → `inbox-corriger/` + un `.txt` explicatif (renommer + redéposer).
+
+**Dépendances :** `brew install exiftool ffmpeg`. **Ne stitche PAS** les 35 segments
+DJI bruts (ça reste la commande manuelle `iso360`) — l'inbox n'accepte que des
+fichiers finis.
+
+**(Ré)installer le watcher sur le NAS Intel :**
+```bash
+cp launchd/com.iso-nord.inbox.plist ~/Library/LaunchAgents/
+launchctl unload ~/Library/LaunchAgents/com.iso-nord.inbox.plist 2>/dev/null
+launchctl load ~/Library/LaunchAgents/com.iso-nord.inbox.plist
+```
+
+**Dépannage :** logs dans `inbox.log` (+ `inbox-launchd.err.log`). Rien ne se passe →
+`launchctl list | grep iso-nord`. GPS manquant → voir `inbox-corriger/`. URL 200 KO →
+tunnel/Caddy (cf §3). Le plist du Mac Pro Intel utilise `/usr/local/bin` pour
+Homebrew. Son script pointe vers le clone NAS `/Volumes/SSD 1/iso-nord`.
+
 ---
 
 ## 6. État actuel des 8 lieux (`labs360.ts`)
