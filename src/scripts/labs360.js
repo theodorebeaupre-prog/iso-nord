@@ -13,10 +13,15 @@
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
+import pannellumCssUrl from 'pannellum/build/pannellum.css?url';
 import { createMap } from './labs360-map.js';
 import { loadMapKit, observeMap } from './labs360-map-loader.js';
 import { shouldAnimateModalOpen } from './labs360-motion.js';
-import { badgeForType } from './labs360-view.js';
+import {
+  adjacentPlaceId,
+  badgeForType,
+  counterLabel,
+} from './labs360-view.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -127,10 +132,49 @@ const badgeEl = modal.querySelector('.l360-modal__badge');
 const titleEl = document.getElementById('l360-title');
 const descEl = modal.querySelector('.l360-modal__desc');
 const creditEl = modal.querySelector('.l360-modal__credit');
+const counterEl = modal.querySelector('.l360-modal__counter');
+const previousButton = modal.querySelector('[data-view-previous]');
+const nextButton = modal.querySelector('[data-view-next]');
+const backgroundRegions = document.querySelectorAll('main, .l360-nav, .l360-footer');
 
 let viewer = null;          // instance Pannellum courante
 let lastTrigger = null;     // élément à re-focus à la fermeture (null si clic carte)
 let open = false;
+let currentPlaceId = '';
+let mediaRequest = 0;
+
+function setBackgroundInert(value) {
+  backgroundRegions.forEach((element) => {
+    if (value) {
+      element.inert = true;
+      element.setAttribute('aria-hidden', 'true');
+    } else {
+      element.inert = false;
+      element.removeAttribute('aria-hidden');
+    }
+  });
+}
+
+function destroyMedia() {
+  mediaRequest += 1;
+  viewer?.destroy();
+  viewer = null;
+  mediaHost.replaceChildren();
+}
+
+function ensurePannellumStyles() {
+  const existing = document.querySelector('link[data-pannellum-styles]');
+  if (existing) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = pannellumCssUrl;
+    link.dataset.pannellumStyles = '';
+    link.addEventListener('load', resolve, { once: true });
+    link.addEventListener('error', reject, { once: true });
+    document.head.append(link);
+  });
+}
 
 function showFallback() {
   mediaHost.replaceChildren();
@@ -139,9 +183,10 @@ function showFallback() {
 }
 
 async function mountMedia(place) {
+  destroyMedia();
+  const request = mediaRequest;
   fallbackEl.hidden = true;
   hintEl.hidden = true;
-  mediaHost.replaceChildren();
   if (!place.media) return showFallback();
 
   if (place.type === '360') {
@@ -149,8 +194,9 @@ async function mountMedia(place) {
       // Lazy : Pannellum (UMD → window.pannellum) + son CSS, au premier besoin.
       await Promise.all([
         import('pannellum/build/pannellum.js'),
-        import('pannellum/build/pannellum.css'),
+        ensurePannellumStyles(),
       ]);
+      if (request !== mediaRequest) return;
       const host = document.createElement('div');
       mediaHost.append(host);
       viewer = window.pannellum.viewer(host, {
@@ -170,11 +216,11 @@ async function mountMedia(place) {
       host.addEventListener('mousedown', hideHint, { once: true, capture: true });
       host.addEventListener('touchstart', hideHint, { once: true, capture: true, passive: true });
     } catch {
-      showFallback();
+      if (request === mediaRequest) showFallback();
     }
   } else if (place.type === 'photo') {
     const img = document.createElement('img');
-    img.loading = 'lazy';
+    img.loading = 'eager';
     img.alt = place.name;
     img.src = place.media;
     img.addEventListener('error', showFallback, { once: true });
@@ -191,22 +237,35 @@ async function mountMedia(place) {
   }
 }
 
+function renderPlace(placeId) {
+  const place = placeById[placeId];
+  if (!place) return;
+  currentPlaceId = place.id;
+  const index = DATA.places.findIndex((candidate) => candidate.id === place.id);
+  titleEl.textContent = place.name;
+  badgeEl.textContent = badgeForType(place.type, DATA);
+  descEl.textContent = place.desc;
+  creditEl.textContent = place.credit ? `${DATA.creditPrefix} ${place.credit}` : '';
+  counterEl.textContent = counterLabel(index, DATA.places.length, DATA.counter);
+  mountMedia(place);
+}
+
+function navigateViewer(direction) {
+  const nextId = adjacentPlaceId(DATA.places, currentPlaceId, direction);
+  if (nextId) renderPlace(nextId);
+}
+
 function openModal(placeId, trigger) {
   const place = placeById[placeId];
   if (!place || open) return;
   open = true;
   lastTrigger = trigger;
 
-  titleEl.textContent = place.name;
-  badgeEl.textContent = badgeForType(place.type, DATA);
-  descEl.textContent = place.desc;
-  // Crédit affiché seulement s'il est renseigné (voir data/labs360.ts).
-  creditEl.textContent = place.credit ? `${DATA.creditPrefix} ${place.credit}` : '';
-
   modal.hidden = false;
+  setBackgroundInert(true);
   lenis?.stop();
   document.body.style.overflow = 'hidden';
-  mountMedia(place);
+  renderPlace(place.id);
 
   if (!shouldAnimateModalOpen(reducedMotion, trigger)) {
     gsap.set(backdrop, { opacity: 0.92 });
@@ -234,10 +293,9 @@ function closeModal() {
   open = false;
   const done = () => {
     modal.hidden = true;
-    viewer?.destroy();
-    viewer = null;
-    mediaHost.replaceChildren();          // stoppe la vidéo, libère Pannellum
+    destroyMedia();                       // stoppe la vidéo, libère Pannellum
     if (map) map.selectedAnnotation = null;  // désélectionne le pin de la carte
+    setBackgroundInert(false);
     lenis?.start();
     document.body.style.overflow = '';
     lastTrigger?.focus();
@@ -252,10 +310,23 @@ document.querySelectorAll('[data-place-id]').forEach((btn) => {
   btn.addEventListener('click', () => openModal(btn.dataset.placeId, btn));
 });
 modal.querySelectorAll('[data-modal-close]').forEach((el) => el.addEventListener('click', closeModal));
+previousButton.addEventListener('click', () => navigateViewer(-1));
+nextButton.addEventListener('click', () => navigateViewer(1));
 
 document.addEventListener('keydown', (e) => {
   if (!open) return;
   if (e.key === 'Escape') return closeModal();
+  if (e.target.matches('input, textarea, select, video')) return;
+  if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    navigateViewer(-1);
+    return;
+  }
+  if (e.key === 'ArrowRight') {
+    e.preventDefault();
+    navigateViewer(1);
+    return;
+  }
   if (e.key !== 'Tab') return;
   // Focus piégé dans le modal.
   const focusables = [...modal.querySelectorAll('button, video, a[href], [tabindex]:not([tabindex="-1"])')]

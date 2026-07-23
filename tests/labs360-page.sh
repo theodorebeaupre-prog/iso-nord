@@ -147,6 +147,32 @@ NODE
   pass "badge modal et état zéro suivent les données runtime"
 }
 
+test_accessible_viewer_navigation() {
+  node --input-type=module - "$VIEW_HELPER" <<'NODE'
+import assert from 'node:assert/strict';
+const { adjacentPlaceId, counterLabel } = await import(`file://${process.argv[2]}`);
+const places = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+assert.equal(adjacentPlaceId(places, 'a', 1), 'b');
+assert.equal(adjacentPlaceId(places, 'c', 1), 'a');
+assert.equal(adjacentPlaceId(places, 'a', -1), 'c');
+assert.equal(adjacentPlaceId(places, 'inconnu', 1), 'a');
+assert.equal(counterLabel(0, 6, '{current} / {total}'), '01 / 06');
+NODE
+  [ "$?" -eq 0 ] || {
+    fail "la navigation circulaire du viewer est déterministe"; return;
+  }
+  rg -Fq 'data-view-previous' "$PAGE" &&
+    rg -Fq 'data-view-next' "$PAGE" &&
+    rg -Fq 'aria-live="polite"' "$PAGE" &&
+    rg -Fq 'aria-describedby="l360-description"' "$PAGE" &&
+    rg -Fq "e.key === 'ArrowLeft'" "$SCRIPT" &&
+    rg -Fq "e.key === 'ArrowRight'" "$SCRIPT" &&
+    rg -Fq '.inert = true' "$SCRIPT" || {
+      fail "la modale expose navigation, annonces et inert"; return;
+    }
+  pass "le viewer est navigable et annoncé au clavier"
+}
+
 test_quebec_only_markup_and_copy() {
   rg -Fq "const visiblePlaces = PLACES.filter((p) => p.city === 'quebec')" "$PAGE" || {
     fail "le runtime filtre explicitement Québec"; return;
@@ -432,6 +458,7 @@ NODE
 test_real_quebec_places_only
 test_real_place_metadata_and_previews
 test_modal_badge_and_empty_state
+test_accessible_viewer_navigation
 test_quebec_only_markup_and_copy
 test_labs_project_copy_quebec_only
 test_cinematic_collection_and_seo

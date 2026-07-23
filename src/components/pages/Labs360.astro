@@ -76,6 +76,9 @@ const runtime = {
   dragHint: l.dragHint,
   mediaSoon: l.mediaSoon,
   creditPrefix: l.creditPrefix,
+  previous: l.previous,
+  next: l.next,
+  counter: l.counter,
   places: visiblePlaces.map((p) => ({
     id: p.id,
     city: p.city,
@@ -254,7 +257,7 @@ const runtime = {
     </main>
 
     <!-- Modal viewer — un seul overlay réutilisé pour 360 et vidéo -->
-    <div class="l360-modal" id="l360-modal" role="dialog" aria-modal="true" aria-labelledby="l360-title" hidden>
+    <div class="l360-modal" id="l360-modal" role="dialog" aria-modal="true" aria-labelledby="l360-title" aria-describedby="l360-description" hidden>
       <div class="l360-modal__backdrop" data-modal-close></div>
       <div class="l360-modal__panel">
         <button type="button" class="l360-modal__close" data-modal-close aria-label={l.close}>×</button>
@@ -262,10 +265,17 @@ const runtime = {
         <p class="l360-modal__hint" hidden>{l.dragHint}</p>
         <p class="l360-modal__fallback" hidden>{l.mediaSoon}</p>
         <div class="l360-modal__info">
-          <p class="l360-modal__badge"></p>
-          <h2 class="l360-modal__name" id="l360-title"></h2>
-          <p class="l360-modal__desc"></p>
-          <p class="l360-modal__credit"></p>
+          <div class="l360-modal__copy">
+            <p class="l360-modal__badge"></p>
+            <h2 class="l360-modal__name" id="l360-title"></h2>
+            <p class="l360-modal__desc" id="l360-description"></p>
+            <p class="l360-modal__credit"></p>
+          </div>
+          <div class="l360-modal__navigation">
+            <button type="button" data-view-previous aria-label={l.previous}>←</button>
+            <p class="l360-modal__counter" aria-live="polite">01 / {pad(visiblePlaces.length)}</p>
+            <button type="button" data-view-next aria-label={l.next}>→</button>
+          </div>
         </div>
       </div>
     </div>
@@ -741,6 +751,10 @@ const runtime = {
       }
 
       .l360-modal__info {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: var(--s-xl);
+        align-items: end;
         padding: var(--s-lg) var(--s-xl) var(--s-xl);
         border-top: 1px solid var(--border);
       }
@@ -767,6 +781,36 @@ const runtime = {
         color: var(--dim);
       }
       .l360-modal__credit:empty { display: none; }
+      .l360-modal__navigation {
+        display: grid;
+        grid-template-columns: 44px minmax(4.5rem, auto) 44px;
+        align-items: center;
+        gap: 0.45rem;
+      }
+      .l360-modal__navigation button {
+        appearance: none;
+        display: grid;
+        place-items: center;
+        width: 44px;
+        height: 44px;
+        border: 1px solid var(--border-control);
+        background: transparent;
+        color: var(--text);
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+      .l360-modal__navigation button:hover,
+      .l360-modal__navigation button:focus-visible {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      .l360-modal__counter {
+        font-family: var(--font-label);
+        font-size: 0.64rem;
+        letter-spacing: 0.18em;
+        text-align: center;
+        color: var(--dim);
+      }
 
       /* ── Footer (motif labs-footer, en sombre) ── */
       .l360-footer {
@@ -809,6 +853,8 @@ const runtime = {
         .l360-collection-head > p:last-child { margin-top: var(--s-lg); }
         .l360-collection { display: block; }
         .l360-collection__item + .l360-collection__item { margin-top: 3rem; }
+        .l360-modal__info { grid-template-columns: 1fr; gap: var(--s-md); }
+        .l360-modal__navigation { justify-content: end; }
         .l360-footer__row { flex-direction: column; }
         .l360-footer__meta { align-items: flex-start; }
       }
