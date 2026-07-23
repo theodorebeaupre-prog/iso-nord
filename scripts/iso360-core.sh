@@ -42,7 +42,13 @@ def num(v):
     except ValueError: return None
 lat=num(os.environ.get('LAT')); lon=num(os.environ.get('LON'))
 dt=(os.environ.get('DT') or '').strip()
-ym=dt[:7].replace(':','-') if dt else ''
+# ym = AAAA-MM, seulement si la date est plausible (année 2000+). Une date nulle
+# ou aberrante (ex. 0000:00:00 d'un MP4 sans horodatage) → ym vide → l'appelant
+# retombe sur le mois courant.
+ym=''
+m=re.match(r'(\d{4}):(\d{2})', dt)
+if m and int(m.group(1))>=2000 and 1<=int(m.group(2))<=12:
+    ym=f"{m.group(1)}-{m.group(2)}"
 res={'lat':lat,'lon':lon,'dt':dt,'ym':ym}
 name=os.environ.get('NAME_OVR','').strip()
 city=os.environ.get('CITY_OVR','').strip()
