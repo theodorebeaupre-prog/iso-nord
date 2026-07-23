@@ -162,13 +162,11 @@ export const ui = {
 
     labs360: {
       title: 'ISO Nord — Québec en 360',
-      description: "Québec en 360 — lieux iconiques de Québec et Montréal captés en drone : panoramas 360° explorables et clips aériens, par ISO Nord Labs.",
-      ogDescription: 'Lieux iconiques de Québec et Montréal — panoramas drone 360° explorables et clips aériens.',
+      description: "Québec en 360 — panoramas explorables et photographies aériennes captés par ISO Nord.",
+      ogDescription: 'Québec vu du ciel — panoramas 360° explorables et photographies aériennes.',
       eyebrow: 'ISO Nord — Labs · 360',
       titleLines: ['Québec', 'en 360.'],
-      lede: "Des lieux iconiques captés en drone — choisissez une ville, touchez un repère, explorez le panorama ou lancez le clip.",
-      cities: { quebec: 'Québec', montreal: 'Montréal' },
-      cityAria: 'Choisir la ville',
+      lede: "Québec vu du ciel — touchez un repère pour explorer un panorama ou ouvrir une photographie.",
       mapUnavailable: 'Carte indisponible — utilisez la liste des lieux ci-dessous.',
       mapAria: 'Carte des lieux',
       legendAria: 'Liste des lieux',
@@ -386,13 +384,11 @@ export const ui = {
 
     labs360: {
       title: 'ISO Nord — Québec in 360',
-      description: 'Québec in 360 — iconic places in Québec City and Montréal captured by drone: explorable 360° panoramas and aerial clips, by ISO Nord Labs.',
-      ogDescription: 'Iconic places in Québec City and Montréal — explorable 360° drone panoramas and aerial clips.',
+      description: 'Québec in 360 — explorable panoramas and aerial photographs captured by ISO Nord.',
+      ogDescription: 'Québec from above — explorable 360° panoramas and aerial photographs.',
       eyebrow: 'ISO Nord — Labs · 360',
       titleLines: ['Québec', 'in 360.'],
-      lede: 'Iconic places captured by drone — pick a city, tap a marker, explore the panorama or play the clip.',
-      cities: { quebec: 'Québec City', montreal: 'Montréal' },
-      cityAria: 'Choose a city',
+      lede: 'Québec from above — tap a marker to explore a panorama or open a photograph.',
       mapUnavailable: 'Map unavailable — use the list of places below.',
       mapAria: 'Map of places',
       legendAria: 'List of places',

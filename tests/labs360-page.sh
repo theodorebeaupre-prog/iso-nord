@@ -2,6 +2,8 @@
 set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DATA="${DATA:-$ROOT/src/data/labs360.ts}"
+PAGE="${PAGE:-$ROOT/src/components/pages/Labs360.astro}"
+UI="${UI:-$ROOT/src/i18n/ui.ts}"
 PASS=0
 FAIL=0
 pass(){ PASS=$((PASS + 1)); printf 'ok - %s\n' "$1"; }
@@ -24,6 +26,20 @@ test_real_quebec_places_only() {
   pass "PLACES contient exactement les six vrais lieux Québec"
 }
 
+test_quebec_only_markup_and_copy() {
+  rg -Fq "const visiblePlaces = PLACES.filter((p) => p.city === 'quebec')" "$PAGE" || {
+    fail "le runtime filtre explicitement Québec"; return;
+  }
+  ! rg -q 'data-city-btn|data-legend-city|l360-cities|l360-city' "$PAGE" || {
+    fail "le sélecteur de ville est retiré"; return;
+  }
+  ! rg -q 'choisissez une ville|pick a city|cityAria|cities:' "$UI" || {
+    fail "la copy ne promet plus de choix de ville"; return;
+  }
+  pass "le markup et la copy sont Québec seulement"
+}
+
 test_real_quebec_places_only
+test_quebec_only_markup_and_copy
 printf '\n%s réussite(s), %s échec(s)\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

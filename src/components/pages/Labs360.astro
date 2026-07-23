@@ -3,7 +3,7 @@
  * Labs — « Québec en 360 » (labs-360-map).
  *
  * Carte stylisée (pas de vraie API carte) : grille SVG subtile, pins en
- * coordonnées %, sélecteur Québec/Montréal. Un pin ouvre le modal viewer —
+ * coordonnées %, Québec. Un pin ouvre le modal viewer —
  * panorama équirectangulaire (Pannellum, chargé lazy par labs360.js) ou clip
  * vidéo. Les données vivent dans src/data/labs360.ts.
  */
@@ -12,7 +12,7 @@ import InstrumentHud from '../InstrumentHud.astro';
 import LangSwitch from '../LangSwitch.astro';
 import { ui, type Lang } from '../../i18n/ui';
 import { pathFor, alternates, SITE } from '../../i18n/utils';
-import { PLACES, mediaUrl, type City } from '../../data/labs360';
+import { PLACES, mediaUrl } from '../../data/labs360';
 
 interface Props { lang: Lang }
 const { lang } = Astro.props;
@@ -25,8 +25,7 @@ const ogLocale = lang === 'fr' ? 'fr_CA' : 'en_CA';
 const navAria = lang === 'fr' ? 'Navigation principale' : 'Main navigation';
 const pad = (n: number) => String(n).padStart(2, '0');
 
-const CITIES: City[] = ['quebec', 'montreal'];
-const byCity = (city: City) => PLACES.filter((p) => p.city === city);
+const visiblePlaces = PLACES.filter((p) => p.city === 'quebec');
 
 /* Données runtime pour labs360.js — médias résolus, description de la langue. */
 const runtime = {
@@ -34,7 +33,7 @@ const runtime = {
   dragHint: l.dragHint,
   mediaSoon: l.mediaSoon,
   creditPrefix: l.creditPrefix,
-  places: PLACES.map((p) => ({
+  places: visiblePlaces.map((p) => ({
     id: p.id,
     city: p.city,
     type: p.type,
@@ -109,18 +108,6 @@ const runtime = {
       <section class="l360-map-section">
         <div class="l360-inner">
 
-          <!-- Sélecteur de ville -->
-          <div class="l360-cities" role="group" aria-label={l.cityAria}>
-            {CITIES.map((city, i) => (
-              <button
-                type="button"
-                class="l360-city"
-                data-city-btn={city}
-                aria-pressed={i === 0 ? 'true' : 'false'}
-              >{l.cities[city]}</button>
-            ))}
-          </div>
-
           <!-- Carte satellite Apple Maps (MapKit JS) — remplie par labs360.js -->
           <div class="l360-map" role="region" aria-label={l.mapAria}>
             <div id="l360-mapkit" class="l360-mapkit"></div>
@@ -128,19 +115,19 @@ const runtime = {
           </div>
 
           <!-- Légende — mêmes lieux, tapables (mobile d'abord) -->
-          {CITIES.map((city, ci) => (
-            <ol class="l360-legend" data-legend-city={city} aria-label={l.legendAria} hidden={ci !== 0}>
-              {byCity(city).map((p, i) => (
-                <li>
-                  <button type="button" class="l360-legend__item" data-place-id={p.id} aria-haspopup="dialog">
-                    <span class="l360-legend__num">{pad(i + 1)}</span>
-                    <span class="l360-legend__name">{p.name}</span>
-                    <em class="l360-legend__badge">{p.type === '360' ? l.badge360 : p.type === 'photo' ? l.badgePhoto : l.badgeVideo}</em>
-                  </button>
-                </li>
-              ))}
-            </ol>
-          ))}
+          <ol class="l360-legend" aria-label={l.legendAria}>
+            {visiblePlaces.map((p, i) => (
+              <li>
+                <button type="button" class="l360-legend__item" data-place-id={p.id} aria-haspopup="dialog">
+                  <span class="l360-legend__num">{pad(i + 1)}</span>
+                  <span class="l360-legend__name">{p.name}</span>
+                  <em class="l360-legend__badge">
+                    {p.type === '360' ? l.badge360 : p.type === 'photo' ? l.badgePhoto : l.badgeVideo}
+                  </em>
+                </button>
+              </li>
+            ))}
+          </ol>
 
         </div>
       </section>
@@ -239,25 +226,6 @@ const runtime = {
         line-height: 1.7;
         color: var(--muted);
       }
-
-      /* ── Sélecteur de ville ── */
-      .l360-cities { display: flex; gap: var(--s-xl); margin-bottom: var(--s-lg); }
-      .l360-city {
-        appearance: none;
-        background: none;
-        border: 0;
-        padding: 0.5rem 0;
-        cursor: pointer;
-        font-family: var(--font-label);
-        font-size: clamp(0.95rem, 2vw, 1.15rem);
-        letter-spacing: 0.28em;
-        text-transform: uppercase;
-        color: var(--dim);
-        border-bottom: 1px solid transparent;
-        transition: color 0.3s ease, border-color 0.3s ease;
-      }
-      .l360-city:hover { color: var(--text); }
-      .l360-city[aria-pressed='true'] { color: var(--accent); border-color: var(--accent); }
 
       /* ── Carte ── */
       .l360-map {
