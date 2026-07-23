@@ -27,3 +27,4 @@ pnpm-debug.log*
 
 # Ledgers locaux des workflows Superpowers (jamais livrés dans le produit)
 .superpowers/
+.worktrees/
