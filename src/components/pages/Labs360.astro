@@ -27,6 +27,48 @@ const pad = (n: number) => String(n).padStart(2, '0');
 
 const visiblePlaces = PLACES.filter((p) => p.city === 'quebec');
 const hasPlaces = hasVisiblePlaces(visiblePlaces);
+const featured = visiblePlaces.find((place) => place.featured) ?? visiblePlaces[0];
+const socialImage = SITE + featured.preview;
+const dateFormatter = new Intl.DateTimeFormat(lang === 'fr' ? 'fr-CA' : 'en-CA', {
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+const formatCapturedAt = (value: string) =>
+  dateFormatter.format(new Date(`${value}-01T12:00:00Z`));
+
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: l.title,
+  description: l.description,
+  url: canonical,
+  inLanguage: lang === 'fr' ? 'fr-CA' : 'en-CA',
+  mainEntity: {
+    '@type': 'ItemList',
+    numberOfItems: visiblePlaces.length,
+    itemListElement: visiblePlaces.map((place, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      item: {
+        '@type': 'CreativeWork',
+        name: place.name,
+        description: place.desc[lang],
+        contentUrl: mediaUrl(place.media),
+        thumbnailUrl: SITE + place.preview,
+        spatialCoverage: {
+          '@type': 'Place',
+          name: place.name,
+          geo: {
+            '@type': 'GeoCoordinates',
+            latitude: place.lat,
+            longitude: place.lon,
+          },
+        },
+      },
+    })),
+  },
+};
 
 /* Données runtime pour labs360.js — médias résolus, description de la langue. */
 const runtime = {
@@ -44,6 +86,8 @@ const runtime = {
     lat: p.lat,
     lon: p.lon,
     media: mediaUrl(p.media),
+    preview: p.preview,
+    capturedAt: p.capturedAt,
     poster: p.poster ? mediaUrl(p.poster) : '',
   })),
   badge360: l.badge360,
@@ -72,6 +116,15 @@ const runtime = {
     <meta property="og:description" content={l.ogDescription} />
     <meta property="og:url" content={canonical} />
     <meta property="og:locale" content={ogLocale} />
+    <meta property="og:image" content={socialImage} />
+    <meta property="og:image:width" content={String(featured.previewWidth)} />
+    <meta property="og:image:height" content={String(featured.previewHeight)} />
+    <meta property="og:image:alt" content={featured.name} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={l.title} />
+    <meta name="twitter:description" content={l.ogDescription} />
+    <meta name="twitter:image" content={socialImage} />
+    <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -99,15 +152,46 @@ const runtime = {
     <main id="l360-main" tabindex="-1">
 
       <header class="l360-hero">
+        <img
+          class="l360-hero__image"
+          src={featured.preview}
+          width={featured.previewWidth}
+          height={featured.previewHeight}
+          alt=""
+          fetchpriority="high"
+          decoding="async"
+          aria-hidden="true"
+        />
+        <div class="l360-hero__shade" aria-hidden="true"></div>
         <div class="l360-inner">
-          <p class="l360-eyebrow">{l.eyebrow}</p>
-          <h1 class="l360-title">{l.titleLines.map((line, i) => (<>{i > 0 && <br />}{line}</>))}</h1>
-          <p class="l360-lede">{l.lede}</p>
+          <div class="l360-hero__content">
+            <p class="l360-eyebrow">{l.eyebrow}</p>
+            <h1 class="l360-title">{l.titleLines.map((line, i) => (<>{i > 0 && <br />}{line}</>))}</h1>
+            <p class="l360-lede">{l.lede}</p>
+            <a class="l360-hero__cta" href="#captures">
+              <span>{l.exploreCta}</span>
+              <span aria-hidden="true">↓</span>
+            </a>
+            <dl class="l360-hero__stats">
+              <div>
+                <dt>{l.captureCount}</dt>
+                <dd>{pad(visiblePlaces.length)}</dd>
+              </div>
+              <div>
+                <dt>{l.mediaKinds}</dt>
+                <dd>{visiblePlaces.filter((place) => place.type === '360').length} × 360° · {visiblePlaces.filter((place) => place.type === 'photo').length} × {l.badgePhoto}</dd>
+              </div>
+            </dl>
+          </div>
         </div>
       </header>
 
       <section class="l360-map-section">
         <div class="l360-inner">
+          <div class="l360-section-head">
+            <p class="l360-section-head__eyebrow">{l.mapTitle}</p>
+            <p class="l360-section-head__intro">{l.mapIntro}</p>
+          </div>
 
           <!-- Carte satellite Apple Maps (MapKit JS) — remplie par labs360.js -->
           <div class="l360-map" role="region" aria-label={l.mapAria}>
@@ -118,26 +202,57 @@ const runtime = {
           {!hasPlaces && (
             <p class="l360-empty">{l.mediaSoon}</p>
           )}
+        </div>
+      </section>
 
-          <!-- Légende — mêmes lieux, tapables (mobile d'abord) -->
-          {hasPlaces && (
-            <ol class="l360-legend" aria-label={l.legendAria}>
-              {visiblePlaces.map((p, i) => (
-                <li>
-                  <button type="button" class="l360-legend__item" data-place-id={p.id} aria-haspopup="dialog">
-                    <span class="l360-legend__num">{pad(i + 1)}</span>
-                    <span class="l360-legend__name">{p.name}</span>
-                    <em class="l360-legend__badge">
-                      {p.type === '360' ? l.badge360 : p.type === 'photo' ? l.badgePhoto : l.badgeVideo}
-                    </em>
+      {hasPlaces && (
+        <section class="l360-collection-section" id="captures" aria-labelledby="captures-title">
+          <div class="l360-inner">
+            <div class="l360-collection-head">
+              <p class="l360-eyebrow">{l.collectionEyebrow}</p>
+              <h2 id="captures-title">{l.collectionTitle}</h2>
+              <p>{l.collectionIntro}</p>
+            </div>
+            <ol class="l360-collection" aria-label={l.legendAria}>
+              {visiblePlaces.map((place, index) => (
+                <li class:list={['l360-collection__item', `l360-collection__item--${index + 1}`]}>
+                  <button
+                    type="button"
+                    class="l360-card"
+                    data-place-id={place.id}
+                    aria-haspopup="dialog"
+                    aria-label={`${l.openCapture} — ${place.name}`}
+                  >
+                    <span class="l360-card__visual">
+                      <img
+                        src={place.preview}
+                        width={place.previewWidth}
+                        height={place.previewHeight}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                      />
+                      <span class="l360-card__index">{pad(index + 1)}</span>
+                      <span class="l360-card__open" aria-hidden="true">↗</span>
+                    </span>
+                    <span class="l360-card__meta">
+                      <span class="l360-card__type">
+                        {place.type === '360' ? l.badge360 : place.type === 'photo' ? l.badgePhoto : l.badgeVideo}
+                      </span>
+                      <span class="l360-card__date">{l.captured} · {formatCapturedAt(place.capturedAt)}</span>
+                    </span>
+                    <strong>{place.name}</strong>
+                    <span class="l360-card__desc">{place.desc[lang]}</span>
                   </button>
                 </li>
               ))}
             </ol>
-          )}
-
-        </div>
-      </section>
+            <noscript>
+              <p class="l360-noscript">{l.noScript}</p>
+            </noscript>
+          </div>
+        </section>
+      )}
     </main>
 
     <!-- Modal viewer — un seul overlay réutilisé pour 360 et vidéo -->
@@ -337,6 +452,225 @@ const runtime = {
         color: var(--dim);
       }
 
+      /* ── Atlas cinématographique ── */
+      .l360-hero {
+        position: relative;
+        display: flex;
+        align-items: flex-end;
+        min-height: 88svh;
+        padding: clamp(8rem, 18vh, 11rem) 0 clamp(3rem, 7vw, 5.5rem);
+        overflow: hidden;
+        isolation: isolate;
+      }
+      .l360-hero__image,
+      .l360-hero__shade {
+        position: absolute;
+        inset: 0;
+      }
+      .l360-hero__image {
+        z-index: -3;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center 46%;
+        scale: 1.015;
+      }
+      .l360-hero__shade {
+        z-index: -2;
+        background:
+          linear-gradient(90deg, rgba(20, 19, 24, 0.96) 0%, rgba(20, 19, 24, 0.72) 52%, rgba(20, 19, 24, 0.28) 100%),
+          linear-gradient(0deg, var(--bg) 0%, transparent 38%);
+      }
+      .l360-hero__content { max-width: 58rem; }
+      .l360-title {
+        max-width: 12ch;
+        font-size: clamp(3rem, 8.7vw, 7.4rem);
+      }
+      .l360-lede { max-width: 48ch; }
+      .l360-hero__cta {
+        display: inline-flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 2rem;
+        min-width: min(100%, 18rem);
+        min-height: 48px;
+        margin-top: var(--s-xl);
+        padding: 0.8rem 1rem;
+        border: 1px solid color-mix(in oklab, var(--accent) 58%, transparent);
+        font-family: var(--font-label);
+        font-size: 0.66rem;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        transition: color 0.3s ease, background 0.3s ease;
+      }
+      .l360-hero__cta:hover,
+      .l360-hero__cta:focus-visible {
+        color: var(--bg);
+        background: var(--accent);
+      }
+      .l360-hero__stats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: clamp(2rem, 6vw, 5rem);
+        margin-top: clamp(2.5rem, 6vh, 4.5rem);
+      }
+      .l360-hero__stats div { display: grid; gap: 0.35rem; }
+      .l360-hero__stats dt {
+        font-family: var(--font-label);
+        font-size: 0.6rem;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--dim);
+      }
+      .l360-hero__stats dd {
+        order: -1;
+        font-family: var(--font-display);
+        font-size: clamp(1.1rem, 2vw, 1.45rem);
+        font-weight: 300;
+        text-transform: uppercase;
+      }
+      .l360-map-section { padding: clamp(4.5rem, 9vw, 8rem) 0; }
+      .l360-section-head {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: var(--s-xl);
+        margin-bottom: var(--s-xl);
+      }
+      .l360-section-head__eyebrow {
+        font-family: var(--font-label);
+        font-size: 0.66rem;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+      .l360-section-head__intro {
+        max-width: 38ch;
+        color: var(--muted);
+        font-size: 0.9rem;
+        line-height: 1.6;
+      }
+      .l360-map { min-height: clamp(24rem, 56vh, 38rem); }
+      .l360-collection-section {
+        padding: clamp(4rem, 9vw, 8rem) 0;
+        border-top: 1px solid var(--border);
+      }
+      .l360-collection-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1.4fr) minmax(15rem, 0.6fr);
+        column-gap: clamp(2rem, 7vw, 7rem);
+        align-items: end;
+        margin-bottom: clamp(2.5rem, 6vw, 5rem);
+      }
+      .l360-collection-head .l360-eyebrow { grid-column: 1 / -1; }
+      .l360-collection-head h2 {
+        max-width: 12ch;
+        font-family: var(--font-display);
+        font-size: clamp(2.2rem, 5.8vw, 5rem);
+        font-weight: 200;
+        line-height: 0.96;
+        text-transform: uppercase;
+        text-wrap: balance;
+      }
+      .l360-collection-head > p:last-child {
+        max-width: 40ch;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+      .l360-collection {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: clamp(2.5rem, 6vw, 6rem) clamp(1.25rem, 3vw, 2.5rem);
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .l360-collection__item { grid-column: span 6; }
+      .l360-collection__item--3,
+      .l360-collection__item--6 { grid-column: 3 / span 8; }
+      .l360-card {
+        width: 100%;
+        min-height: 44px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: var(--text);
+        text-align: left;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+      .l360-card__visual {
+        position: relative;
+        display: block;
+        aspect-ratio: 16 / 10;
+        overflow: hidden;
+        background: var(--surface);
+        border: 1px solid var(--border);
+      }
+      .l360-card__visual img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: scale 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+      }
+      .l360-card__index,
+      .l360-card__open {
+        position: absolute;
+        top: 1rem;
+        display: grid;
+        place-items: center;
+        min-width: 44px;
+        min-height: 44px;
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        background: rgba(20, 19, 24, 0.72);
+        font-family: var(--font-label);
+        font-size: 0.64rem;
+        color: var(--text);
+      }
+      .l360-card__index { left: 1rem; }
+      .l360-card__open { right: 1rem; font-size: 1rem; }
+      .l360-card__meta {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-top: 1rem;
+        font-family: var(--font-label);
+        font-size: 0.6rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+      .l360-card__type { color: var(--accent); }
+      .l360-card__date { color: var(--dim); text-align: right; }
+      .l360-card strong {
+        display: block;
+        margin-top: 0.75rem;
+        font-family: var(--font-display);
+        font-size: clamp(1.3rem, 2.7vw, 2.3rem);
+        font-weight: 300;
+        line-height: 1.05;
+        text-transform: uppercase;
+      }
+      .l360-card__desc {
+        display: block;
+        max-width: 54ch;
+        margin-top: 0.65rem;
+        color: var(--muted);
+        font-size: 0.88rem;
+        line-height: 1.6;
+      }
+      .l360-card:hover .l360-card__visual img,
+      .l360-card:focus-visible .l360-card__visual img { scale: 1.035; }
+      .l360-card:focus-visible {
+        outline: 1px solid var(--accent);
+        outline-offset: 6px;
+      }
+      .l360-noscript {
+        margin-top: var(--s-xl);
+        padding: 1rem;
+        border: 1px solid var(--border);
+        color: var(--muted);
+      }
+
       /* ── Modal ── */
       /* user-select: none — le drag du panorama traverse la fiche du lieu
          et surlignerait le texte sans ça. */
@@ -466,7 +800,17 @@ const runtime = {
       .l360-footer__meta a:hover { color: var(--accent); }
 
       @media (max-width: 640px) {
-        .l360-map { min-height: 28rem; height: 62svh; }
+        .l360-hero { min-height: 92svh; }
+        .l360-hero__shade {
+          background:
+            linear-gradient(0deg, var(--bg) 0%, rgba(20, 19, 24, 0.58) 55%, rgba(20, 19, 24, 0.75) 100%);
+        }
+        .l360-section-head { align-items: start; flex-direction: column; }
+        .l360-map { min-height: 26rem; height: 56svh; }
+        .l360-collection-head { grid-template-columns: 1fr; }
+        .l360-collection-head > p:last-child { margin-top: var(--s-lg); }
+        .l360-collection { display: block; }
+        .l360-collection__item + .l360-collection__item { margin-top: 3rem; }
         .l360-footer__row { flex-direction: column; }
         .l360-footer__meta { align-items: flex-start; }
       }
@@ -477,6 +821,8 @@ const runtime = {
         :global(.l360-nav__link),
         .l360-marker,
         .l360-legend__item,
+        .l360-hero__cta,
+        .l360-card__visual img,
         .l360-modal__close,
         .l360-footer__meta a {
           transition: none;
@@ -486,7 +832,8 @@ const runtime = {
         .l360-title,
         .l360-lede,
         .l360-map,
-        .l360-legend {
+        .l360-legend,
+        .l360-card {
           opacity: 1;
           transform: none;
         }

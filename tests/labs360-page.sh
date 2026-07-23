@@ -177,6 +177,28 @@ test_labs_project_copy_quebec_only() {
   pass "les cartes projet Labs360 sont Québec seulement"
 }
 
+test_cinematic_collection_and_seo() {
+  rg -Fq 'id="captures"' "$PAGE" &&
+    rg -Fq 'class="l360-card"' "$PAGE" &&
+    rg -Fq 'data-place-id={place.id}' "$PAGE" &&
+    rg -Fq 'loading="lazy"' "$PAGE" &&
+    rg -Fq 'decoding="async"' "$PAGE" || {
+      fail "la collection SSR expose les six captations optimisées"; return;
+    }
+  rg -Fq 'application/ld+json' "$PAGE" &&
+    rg -Fq "'@type': 'CollectionPage'" "$PAGE" &&
+    rg -Fq 'property="og:image"' "$PAGE" &&
+    rg -Fq 'name="twitter:card"' "$PAGE" &&
+    rg -Fq '<noscript>' "$PAGE" || {
+      fail "le partage, les données structurées et le repli sans JS sont présents"; return;
+    }
+  rg -Fq 'const featured = visiblePlaces.find((place) => place.featured)' "$PAGE" &&
+    rg -Fq 'const socialImage = SITE + featured.preview;' "$PAGE" || {
+      fail "le hero et le partage utilisent un vrai aperçu vedette"; return;
+    }
+  pass "collection cinématographique et SEO sont rendus côté serveur"
+}
+
 test_quebec_only_map_logic() {
   ! rg -q 'REGIONS|currentCity|showCity|cityButtons|data-city-btn|#montreal|replaceState' "$SCRIPT" || {
     fail "le JavaScript ne gère plus les villes ni le hash"; return;
@@ -236,25 +258,26 @@ NODE
 }
 
 test_targeted_polish_contract() {
-  rg -Uq '\.l360-hero \{[^}]*padding: clamp\(7rem, 16vh, 10rem\) 0 clamp\(2rem, 5vw, 3\.5rem\);' "$PAGE" || {
-    fail "le hero utilise le rythme vertical ciblé"; return;
+  rg -Uq '\.l360-hero \{[^}]*min-height: 88svh;[^}]*padding: clamp\(8rem, 18vh, 11rem\) 0 clamp\(3rem, 7vw, 5\.5rem\);' "$PAGE" || {
+    fail "le hero cinématographique occupe le premier écran"; return;
   }
-  rg -Uq '\.l360-map-section \{[^}]*padding-bottom: clamp\(5rem, 10vw, 9rem\);' "$PAGE" || {
-    fail "la section carte garde un dégagement final fluide"; return;
+  rg -Uq '\.l360-map-section \{ padding: clamp\(4\.5rem, 9vw, 8rem\) 0; \}' "$PAGE" || {
+    fail "la section carte garde un rythme fluide"; return;
   }
-  rg -Uq '\.l360-map \{[^}]*width: 100%;[^}]*min-height: clamp\(30rem, 68vh, 48rem\);' "$PAGE" || {
-    fail "la carte desktop conserve une hauteur utile"; return;
+  rg -Uq '\.l360-map \{ min-height: clamp\(24rem, 56vh, 38rem\); \}' "$PAGE" || {
+    fail "la carte reste utile sans repousser la collection"; return;
   }
-  rg -Uq '\.l360-legend \{[^}]*margin: clamp\(1\.25rem, 3vw, 2rem\) 0 0;' "$PAGE" || {
-    fail "la légende utilise un espacement fluide"; return;
+  rg -Uq '\.l360-collection \{[^}]*grid-template-columns: repeat\(12, minmax\(0, 1fr\)\);' "$PAGE" || {
+    fail "la collection utilise une grille éditoriale"; return;
   }
-  rg -Uq '\.l360-legend__item \{[^}]*min-height: 4rem;[^}]*touch-action: manipulation;' "$PAGE" || {
-    fail "les lignes de légende ont une cible tactile confortable"; return;
+  rg -Uq '\.l360-card \{[^}]*min-height: 44px;[^}]*touch-action: manipulation;' "$PAGE" || {
+    fail "les cartes ont une cible tactile confortable"; return;
   }
-  rg -Uq '\.l360-legend__item:focus-visible \{[^}]*outline: 1px solid var\(--accent\);[^}]*outline-offset: 4px;' "$PAGE" || {
-    fail "le focus clavier de la légende est visible"; return;
+  rg -Uq '\.l360-card:focus-visible \{[^}]*outline: 1px solid var\(--accent\);[^}]*outline-offset: 6px;' "$PAGE" || {
+    fail "le focus clavier des cartes est visible"; return;
   }
-  rg -Uq '@media \(max-width: 640px\) \{[^}]*\.l360-map \{ min-height: 28rem; height: 62svh; \}' "$PAGE" || {
+  rg -Fq '@media (max-width: 640px)' "$PAGE" &&
+    rg -Fq '.l360-map { min-height: 26rem; height: 56svh; }' "$PAGE" || {
     fail "la carte mobile utilise le cadrage compact"; return;
   }
   rg -Uq '@media \(prefers-reduced-motion: reduce\)' "$PAGE" || {
@@ -298,6 +321,7 @@ test_real_place_metadata_and_previews
 test_modal_badge_and_empty_state
 test_quebec_only_markup_and_copy
 test_labs_project_copy_quebec_only
+test_cinematic_collection_and_seo
 test_quebec_only_map_logic
 test_region_for_places
 test_targeted_polish_contract
