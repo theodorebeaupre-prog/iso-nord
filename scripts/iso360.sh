@@ -95,12 +95,14 @@ info "Optimisation géométrique…"
 opt_err=$(autooptimiser -a -m -l -s -o p.pto p.pto 2>&1 | grep -Eo 'error: [0-9.]+' | tail -1 | grep -Eo '[0-9.]+' || echo "?")
 pano_modify --projection=2 --fov=360x180 --canvas="$CANVAS" -o p.pto p.pto >/dev/null 2>&1
 info "Rendu + fusion (nona + enblend)…"
-nona -m TIFF_m -o s_ p.pto >/dev/null 2>&1
-enblend -o pano.tif s_*.tif >/dev/null 2>&1
+# `|| true` : ne pas laisser set -e couper ici — on juge le résultat via la
+# taille du TIFF ci-dessous (message d'échec propre plutôt qu'exit opaque).
+nona -m TIFF_m -o s_ p.pto >/dev/null 2>&1 || true
+enblend -o pano.tif s_*.tif >/dev/null 2>&1 || true
 
-# Garde-fou stitch : les panos d'hiver (neige) donnent un TIFF quasi vide.
+# Garde-fou stitch : panos d'hiver / recouvrement faible → TIFF absent ou minuscule.
 tif_size=$(stat -f%z pano.tif 2>/dev/null || echo 0)
-[[ "$tif_size" -gt 100000 ]] || die "Stitch échoué (TIFF ${tif_size} o, erreur opt=${opt_err}). Souvent la neige : trop peu de points de contrôle. Essaie une autre session ou des points manuels dans Hugin."
+[[ "$tif_size" -gt 100000 ]] || die "Stitch échoué (TIFF ${tif_size} o, erreur opt=${opt_err}). Souvent la neige ou trop peu de recouvrement : trop peu de points de contrôle. Essaie une autre session ou des points manuels dans Hugin."
 sips -s format jpeg -s formatOptions 85 pano.tif --out flat.jpg >/dev/null 2>&1
 sips --padToHeightWidth "${CANVAS#*x}" "${CANVAS%x*}" --padColor FFFFFF flat.jpg --out pano.jpg >/dev/null 2>&1
 ok "Panorama assemblé (erreur opt=${opt_err} px, $(du -h pano.jpg | cut -f1))"
