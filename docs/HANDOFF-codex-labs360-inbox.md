@@ -88,6 +88,7 @@ Attendu : les deux binaires présents dans `/usr/local/bin`.
 ```bash
 ssh -i ~/.ssh/id_ed25519_macpro theodorebeaupre@100.99.244.24 'bash -lc "
   cd \"/Volumes/SSD 1/iso-nord\" && git pull --ff-only origin main   # récupère le code fini
+  mkdir -p \"/Volumes/SSD 1/iso-nord-media/inbox\"
   cp launchd/com.iso-nord.inbox.plist ~/Library/LaunchAgents/
   launchctl unload ~/Library/LaunchAgents/com.iso-nord.inbox.plist 2>/dev/null
   launchctl load  ~/Library/LaunchAgents/com.iso-nord.inbox.plist

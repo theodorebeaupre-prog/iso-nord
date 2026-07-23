@@ -233,6 +233,7 @@ fichiers finis.
 
 **(Ré)installer le watcher sur le NAS Intel :**
 ```bash
+mkdir -p "/Volumes/SSD 1/iso-nord-media/inbox"
 cp launchd/com.iso-nord.inbox.plist ~/Library/LaunchAgents/
 launchctl unload ~/Library/LaunchAgents/com.iso-nord.inbox.plist 2>/dev/null
 launchctl load ~/Library/LaunchAgents/com.iso-nord.inbox.plist
