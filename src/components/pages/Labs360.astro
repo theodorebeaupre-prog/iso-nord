@@ -197,6 +197,7 @@ const runtime = {
           <!-- Carte satellite Apple Maps (MapKit JS) — remplie par labs360.js -->
           <div class="l360-map" role="region" aria-label={l.mapAria}>
             <div id="l360-mapkit" class="l360-mapkit"></div>
+            <p class="l360-map__loading">{l.mapLoading}</p>
             <p class="l360-map__fallback">{l.mapUnavailable}</p>
           </div>
 
@@ -385,6 +386,7 @@ const runtime = {
       /* Conteneur MapKit — rempli par labs360.js. Sous la carte, un message de
          repli reste visible tant que la carte n'a pas chargé (ou si elle échoue). */
       .l360-mapkit { position: absolute; inset: 0; z-index: 1; }
+      .l360-map__loading,
       .l360-map__fallback {
         position: absolute; inset: 0; z-index: 0;
         display: grid; place-items: center;
@@ -392,6 +394,14 @@ const runtime = {
         font-family: var(--font-label);
         font-size: 0.72rem; letter-spacing: 0.22em; text-transform: uppercase;
         color: var(--dim);
+      }
+      .l360-map__fallback { display: none; }
+      .l360-map[data-state='ready'] .l360-map__loading { display: none; }
+      .l360-map[data-state='error'] .l360-mapkit,
+      .l360-map[data-state='error'] .l360-map__loading { display: none; }
+      .l360-map[data-state='error'] .l360-map__fallback {
+        z-index: 2;
+        display: grid;
       }
       /* Marqueur lime custom posé sur la carte (annotation MapKit). */
       .l360-marker {
@@ -857,6 +867,11 @@ const runtime = {
         .l360-modal__navigation { justify-content: end; }
         .l360-footer__row { flex-direction: column; }
         .l360-footer__meta { align-items: flex-start; }
+      }
+
+      @media (pointer: coarse) {
+        .cursor-dot, .cursor-ring { display: none; }
+        .l360-card:hover .l360-card__visual img { scale: 1; }
       }
 
       @media (prefers-reduced-motion: reduce) {

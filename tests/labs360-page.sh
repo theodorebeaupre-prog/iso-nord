@@ -390,7 +390,10 @@ NODE
     fail "le chargeur MapKit différé respecte cache et intersection"; return;
   }
   ! rg -Fq '<script id="mapkit-js"' "$PAGE" &&
-    rg -Fq "from './labs360-map-loader.js'" "$SCRIPT" || {
+    rg -Fq "from './labs360-map-loader.js'" "$SCRIPT" &&
+    rg -Fq 'class="l360-map__loading"' "$PAGE" &&
+    rg -Fq 'class="l360-map__fallback"' "$PAGE" &&
+    rg -Fq ".l360-map[data-state='error'] .l360-mapkit" "$PAGE" || {
       fail "MapKit ne doit plus charger dans le head"; return;
     }
   pass "MapKit charge une seule fois à l’approche de la carte"
@@ -431,6 +434,35 @@ test_targeted_polish_contract() {
   pass "le polish ciblé respecte tactile, focus et responsive"
 }
 
+test_motion_and_performance_budgets() {
+  rg -Fq '@media (pointer: coarse)' "$PAGE" &&
+    rg -Fq '.cursor-dot, .cursor-ring { display: none; }' "$PAGE" || {
+      fail "le curseur custom doit disparaître sur écran tactile"; return;
+    }
+  rg -Fq "gsap.utils.toArray('.l360-card')" "$SCRIPT" &&
+    rg -Fq 'scrollTrigger:' "$SCRIPT" || {
+      fail "les cartes doivent utiliser un reveal progressif léger"; return;
+    }
+  ! rg -q 'filter:[[:space:]]*blur|backdrop-filter' "$PAGE" || {
+    fail "le polish ne doit pas animer ou appliquer de blur coûteux"; return;
+  }
+
+  local html="$ROOT/dist/labs/360/index.html" labs_js=""
+  [ -f "$html" ] || {
+    fail "un build est requis pour mesurer les budgets"; return;
+  }
+  labs_js="$(find "$ROOT/dist/_astro" -maxdepth 1 -type f -name 'Labs360*.js' -print -quit)"
+  [ -n "$labs_js" ] &&
+    [ "$(stat -f%z "$html")" -lt 35840 ] &&
+    [ "$(stat -f%z "$labs_js")" -lt 20480 ] || {
+      fail "HTML ou JavaScript Labs dépasse son budget"; return;
+    }
+  ! rg -q '<script[^>]+cdn\.apple-mapkit\.com|<link[^>]+pannellum[^>]+\.css' "$html" || {
+    fail "MapKit et Pannellum ne doivent pas être des ressources initiales"; return;
+  }
+  pass "mouvement et ressources initiales respectent les budgets"
+}
+
 test_reduced_motion_modal_opens_instantly() {
   rg -Fq "import { shouldAnimateModalOpen } from './labs360-motion.js';" "$SCRIPT" || {
     fail "la modale utilise la politique de mouvement testable"; return;
@@ -466,6 +498,7 @@ test_quebec_only_map_logic
 test_region_for_places
 test_deferred_mapkit_loader
 test_targeted_polish_contract
+test_motion_and_performance_budgets
 test_reduced_motion_modal_opens_instantly
 printf '\n%s réussite(s), %s échec(s)\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
