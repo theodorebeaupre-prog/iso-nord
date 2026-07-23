@@ -145,7 +145,7 @@ const runtime = {
       <a href={pathFor('home', lang)} class="l360-nav__home">ISO Nord</a>
       <div class="l360-nav__links">
         <a href={pathFor('labs', lang)} class="l360-nav__link">{l.backToLabs}</a>
-        <a href={pathFor('portfolio', lang)} class="l360-nav__link">{c.navPortfolio}</a>
+        <a href={pathFor('portfolio', lang)} class="l360-nav__link l360-nav__portfolio">{c.navPortfolio}</a>
         <LangSwitch lang={lang} page="labs360" class="l360-nav__link" />
       </div>
     </nav>
@@ -304,7 +304,9 @@ const runtime = {
       .l360-page { background: var(--bg); color: var(--text); min-height: 100%; }
 
       .l360-inner {
+        width: 100%;
         max-width: 72rem;
+        box-sizing: border-box;
         margin: 0 auto;
         padding: 0 clamp(1.25rem, 5vw, 6rem);
       }
@@ -332,6 +334,7 @@ const runtime = {
         color: var(--text);
         transition: color 0.3s ease;
         touch-action: manipulation;
+        text-shadow: 0 1px 12px rgba(0, 0, 0, 0.9);
       }
       .l360-nav__link, :global(.l360-nav__link) { color: var(--muted); }
       .l360-nav__links { display: flex; align-items: center; gap: clamp(1.1rem, 3vw, 2rem); }
@@ -852,6 +855,16 @@ const runtime = {
       .l360-footer__meta a:hover { color: var(--accent); }
 
       @media (max-width: 640px) {
+        .l360-nav { padding-inline: 0.9rem; }
+        .l360-nav__links { gap: 0.6rem; }
+        .l360-nav__portfolio { display: none; }
+        .l360-nav__home,
+        .l360-nav__link,
+        :global(.l360-nav__link) {
+          font-size: 0.58rem;
+          letter-spacing: 0.18em;
+          color: var(--text);
+        }
         .l360-hero { min-height: 92svh; }
         .l360-hero__shade {
           background:

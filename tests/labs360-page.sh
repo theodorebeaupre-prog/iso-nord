@@ -400,6 +400,9 @@ NODE
 }
 
 test_targeted_polish_contract() {
+  rg -Uq '\.l360-inner \{[^}]*width: 100%;[^}]*box-sizing: border-box;' "$PAGE" || {
+    fail "les conteneurs flex doivent rester bornés au viewport"; return;
+  }
   rg -Uq '\.l360-hero \{[^}]*min-height: 88svh;[^}]*padding: clamp\(8rem, 18vh, 11rem\) 0 clamp\(3rem, 7vw, 5\.5rem\);' "$PAGE" || {
     fail "le hero cinématographique occupe le premier écran"; return;
   }
@@ -422,6 +425,11 @@ test_targeted_polish_contract() {
     rg -Fq '.l360-map { min-height: 26rem; height: 56svh; }' "$PAGE" || {
     fail "la carte mobile utilise le cadrage compact"; return;
   }
+  rg -Fq '.l360-nav__links { gap: 0.6rem; }' "$PAGE" &&
+    rg -Fq 'letter-spacing: 0.18em;' "$PAGE" &&
+    rg -Fq '.l360-nav__portfolio { display: none; }' "$PAGE" || {
+      fail "la navigation mobile doit tenir sans être coupée"; return;
+    }
   rg -Uq '@media \(prefers-reduced-motion: reduce\)' "$PAGE" || {
     fail "le composant respecte reduced-motion"; return;
   }
