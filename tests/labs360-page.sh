@@ -5,6 +5,7 @@ DATA="${DATA:-$ROOT/src/data/labs360.ts}"
 PAGE="${PAGE:-$ROOT/src/components/pages/Labs360.astro}"
 UI="${UI:-$ROOT/src/i18n/ui.ts}"
 SCRIPT="${SCRIPT:-$ROOT/src/scripts/labs360.js}"
+MAP_HELPER="${MAP_HELPER:-$ROOT/src/scripts/labs360-map.js}"
 PASS=0
 FAIL=0
 pass(){ PASS=$((PASS + 1)); printf 'ok - %s\n' "$1"; }
@@ -62,15 +63,64 @@ test_quebec_only_map_logic() {
   ! rg -q 'REGIONS|currentCity|showCity|cityButtons|data-city-btn|#montreal|replaceState' "$SCRIPT" || {
     fail "le JavaScript ne gère plus les villes ni le hash"; return;
   }
-  rg -q 'function regionForPlaces' "$SCRIPT" || {
+  rg -q 'function regionForPlaces' "$MAP_HELPER" || {
     fail "la carte cadre les lieux visibles"; return;
   }
   pass "MapKit utilise une seule région calculée"
+}
+
+test_region_for_places() {
+  rg -Fq 'region: regionForPlaces(DATA.places)' "$SCRIPT" || {
+    fail "le constructeur MapKit utilise les lieux publiés"; return;
+  }
+  node --input-type=module - "$MAP_HELPER" <<'NODE'
+import assert from 'node:assert/strict';
+
+class Coordinate {
+  constructor(latitude, longitude) {
+    this.latitude = latitude;
+    this.longitude = longitude;
+  }
+}
+class CoordinateSpan {
+  constructor(latitudeDelta, longitudeDelta) {
+    this.latitudeDelta = latitudeDelta;
+    this.longitudeDelta = longitudeDelta;
+  }
+}
+class CoordinateRegion {
+  constructor(center, span) {
+    this.center = center;
+    this.span = span;
+  }
+}
+globalThis.mapkit = { Coordinate, CoordinateSpan, CoordinateRegion };
+
+const { regionForPlaces } = await import(`file://${process.argv[2]}`);
+const closeTo = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9);
+const assertRegion = (region, latitude, longitude, latitudeDelta, longitudeDelta) => {
+  closeTo(region.center.latitude, latitude);
+  closeTo(region.center.longitude, longitude);
+  closeTo(region.span.latitudeDelta, latitudeDelta);
+  closeTo(region.span.longitudeDelta, longitudeDelta);
+};
+
+assertRegion(regionForPlaces([]), 46.84, -71.22, 0.18, 0.24);
+assertRegion(regionForPlaces([{ lat: 46.8, lon: -71.1 }]), 46.8, -71.1, 0.08, 0.12);
+assertRegion(regionForPlaces([
+  { lat: 46.7, lon: -71.5 }, { lat: 46.8, lon: -71.4 },
+  { lat: 46.9, lon: -71.3 }, { lat: 47, lon: -71.2 },
+  { lat: 46.75, lon: -71 }, { lat: 46.95, lon: -71.45 },
+]), 46.85, -71.25, 0.54, 0.9);
+NODE
+  [ "$?" -eq 0 ] || { fail "regionForPlaces calcule les cadrages vide, seul et six lieux"; return; }
+  pass "regionForPlaces calcule les cadrages vide, seul et six lieux"
 }
 
 test_real_quebec_places_only
 test_quebec_only_markup_and_copy
 test_labs_project_copy_quebec_only
 test_quebec_only_map_logic
+test_region_for_places
 printf '\n%s réussite(s), %s échec(s)\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
