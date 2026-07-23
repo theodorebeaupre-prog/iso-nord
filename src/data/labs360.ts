@@ -14,7 +14,7 @@
  * n'est pas confirmée (la ligne crédit est alors masquée dans le viewer).
  */
 
-export type City = 'quebec' | 'montreal';
+export type City = 'quebec';
 export type PlaceType = '360' | 'video' | 'photo';
 
 export interface Labs360Place {
@@ -24,9 +24,14 @@ export interface Labs360Place {
   name: string;                       // nom propre — identique fr/en
   desc: { fr: string; en: string };
   credit: string;
+  capturedAt: string;                  // mois de captation, format YYYY-MM
   lat: number;                        // latitude GPS
   lon: number;                        // longitude GPS
   media: string;
+  preview: string;                    // dérivé WebP léger pour hero/collection
+  previewWidth: number;
+  previewHeight: number;
+  featured?: boolean;
   poster?: string;                    // affiche (vidéo surtout)
 }
 
@@ -52,8 +57,13 @@ export const PLACES: Labs360Place[] = [
       en: 'The estate and its arboretum, seen from above at dusk.',
     },
     credit: '',
+    capturedAt: '2025-10',
     lat: 46.8360, lon: -71.2139,
     media: 'https://media.theo-picture.com/panoramas/maizerets-2025-10.jpg',
+    preview: '/assets/labs360/previews/maizerets.webp',
+    previewWidth: 1600,
+    previewHeight: 800,
+    featured: true,
   },
   {
     id: 'patro-roc-amadour',
@@ -65,10 +75,14 @@ export const PLACES: Labs360Place[] = [
       en: 'The Patro and the Lairet neighbourhood from 100 m up — Centre Vidéotron and the Québec City skyline on the horizon.',
     },
     credit: '',
+    capturedAt: '2026-06',
     lat: 46.8327, lon: -71.2445,
     // Vrai pano drone (28 juin 2026, GPS 46.8327 N 71.2445 W, stitché des
     // 35 segments DJI avec Hugin), servi via Cloudflare Tunnel.
     media: 'https://media.theo-picture.com/panoramas/patro-roc-amadour-2026.jpg',
+    preview: '/assets/labs360/previews/patro-roc-amadour.webp',
+    previewWidth: 1600,
+    previewHeight: 800,
   },
 
   {
@@ -81,9 +95,13 @@ export const PLACES: Labs360Place[] = [
       en: 'Giffard and Beauport from 400 m up \u2014 the river, \u00cele d\u2019Orl\u00e9ans and Qu\u00e9bec City on the horizon.',
     },
     credit: '',
+    capturedAt: '2025-10',
     lat: 46.849922222222226, lon: -71.21155555555556,
     // Pano drone auto-publié par iso360 (2025:10:25 13:07:26)
     media: "https://media.theo-picture.com/panoramas/giffard-2025-10.jpg",
+    preview: '/assets/labs360/previews/giffard.webp',
+    previewWidth: 1600,
+    previewHeight: 800,
   },
   {
     id: 'centre-monseigneur-marcoux',
@@ -95,9 +113,13 @@ export const PLACES: Labs360Place[] = [
       en: 'The centre and the Limoilou neighbourhood under snow, at winter sunset.',
     },
     credit: '',
+    capturedAt: '2025-12',
     lat: 46.8436, lon: -71.2235,
     // Pano drone DJI (14 déc 2025), servi via Cloudflare Tunnel.
     media: 'https://media.theo-picture.com/panoramas/centre-monseigneur-marcoux-2025-12.jpg',
+    preview: '/assets/labs360/previews/centre-monseigneur-marcoux.webp',
+    previewWidth: 1600,
+    previewHeight: 800,
   },
   {
     id: "limoilou",
@@ -109,9 +131,13 @@ export const PLACES: Labs360Place[] = [
       en: "Limoilou \u2014 aerial view captured by drone.",
     },
     credit: '',
+    capturedAt: '2025-12',
     lat: 46.8258833333333, lon: -71.2177472222222,
     // Auto-publié par iso-ingest; ingest-job:1784828331-25308-6138 (2025:12:01 16:40:02)
     media: "https://media.theo-picture.com/photos/limoilou-2025-12.jpg",
+    preview: '/assets/labs360/previews/limoilou.webp',
+    previewWidth: 1600,
+    previewHeight: 1200,
   },
   {
     id: "colline-parlementaire",
@@ -123,9 +149,13 @@ export const PLACES: Labs360Place[] = [
       en: "Colline Parlementaire \u2014 aerial view captured by drone.",
     },
     credit: '',
+    capturedAt: '2025-10',
     lat: 46.8030111111111, lon: -71.2182055555556,
     // Auto-publié par iso-ingest; ingest-job:1784829279-25791-17325 (2025:10:20 18:50:55)
     media: "https://media.theo-picture.com/photos/colline-parlementaire-2025-10.jpg",
+    preview: '/assets/labs360/previews/colline-parlementaire.webp',
+    previewWidth: 1600,
+    previewHeight: 900,
   },
   // iso360:insert — les nouveaux lieux publiés par `iso360` s'insèrent au-dessus de cette ligne
 ];

@@ -79,6 +79,45 @@ test_real_quebec_places_only() {
   pass "les lieux visibles sont exactement les six Québec; Montréal futur est permis"
 }
 
+test_real_place_metadata_and_previews() {
+  local preview size total=0 count=0 featured_count captured_count preview_count preview_width_count preview_height_count places
+  places="$(sed -n '/^export const PLACES: Labs360Place\[\] = \[$/,/^[[:space:]]*\/\/ iso360:insert/p' "$DATA")"
+  featured_count="$(printf '%s\n' "$places" | rg -c 'featured: true' || printf '0')"
+  captured_count="$(printf '%s\n' "$places" | rg -c 'capturedAt:' || printf '0')"
+  preview_count="$(printf '%s\n' "$places" | rg -c 'preview:' || printf '0')"
+  preview_width_count="$(printf '%s\n' "$places" | rg -c 'previewWidth:' || printf '0')"
+  preview_height_count="$(printf '%s\n' "$places" | rg -c 'previewHeight:' || printf '0')"
+  [ "$featured_count" -eq 1 ] || {
+    fail "un seul lieu doit alimenter le hero"; return;
+  }
+  [ "$captured_count" -eq 6 ] || {
+    fail "les six lieux doivent avoir une date de captation"; return;
+  }
+  [ "$preview_count" -eq 6 ] || {
+    fail "les six lieux doivent avoir un aperçu local"; return;
+  }
+  [ "$preview_width_count" -eq 6 ] &&
+    [ "$preview_height_count" -eq 6 ] || {
+      fail "les six aperçus doivent déclarer leurs dimensions"; return;
+    }
+  for preview in "$ROOT"/public/assets/labs360/previews/*.webp; do
+    [ -f "$preview" ] || { fail "aperçu WebP manquant"; return; }
+    size="$(stat -f%z "$preview")"
+    [ "$size" -lt 358400 ] || {
+      fail "$(basename "$preview") dépasse 350 Ko"; return;
+    }
+    total=$((total + size))
+    count=$((count + 1))
+  done
+  [ "$count" -eq 6 ] || {
+    fail "exactement six aperçus WebP sont requis"; return;
+  }
+  [ "$total" -lt 1887437 ] || {
+    fail "les aperçus dépassent 1,8 Mo"; return;
+  }
+  pass "métadonnées et aperçus réels respectent le budget"
+}
+
 test_modal_badge_and_empty_state() {
   rg -Fq 'class="l360-modal__badge"' "$PAGE" &&
     rg -Fq 'const badgeEl = modal.querySelector(' "$SCRIPT" &&
@@ -253,6 +292,7 @@ NODE
 }
 
 test_real_quebec_places_only
+test_real_place_metadata_and_previews
 test_modal_badge_and_empty_state
 test_quebec_only_markup_and_copy
 test_labs_project_copy_quebec_only
