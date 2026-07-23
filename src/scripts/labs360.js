@@ -2,8 +2,7 @@
  * Labs 360 — interactions de la page carte.
  *
  * - Lenis + reveals GSAP (mêmes réglages que labs.js)
- * - Carte satellite Apple Maps (MapKit JS) + pins aux vraies coordonnées GPS
- * - Sélecteur Québec/Montréal : survole la caméra entre les deux régions
+ * - Carte satellite Apple Maps centrée sur les médias publiés à Québec
  * - Modal viewer : Pannellum (dynamic import, au 1er pin 360) ou <video>,
  *   focus piégé, Échap/backdrop, focus restitué au déclencheur.
  *
@@ -63,38 +62,28 @@ if (!reducedMotion) {
 }
 
 /* ── Carte satellite Apple Maps (MapKit JS) ───────────────────────────────── */
-// Régions cadrées sur chaque agglomération (centre + amplitude en degrés).
-const REGIONS = {
-  quebec: { center: [46.85, -71.15], span: [0.30, 0.45] },
-  montreal: { center: [45.51, -73.57], span: [0.18, 0.28] },
-};
 let map = null;
 
-const cityButtons = [...document.querySelectorAll('[data-city-btn]')];
-const legends = [...document.querySelectorAll('[data-legend-city]')];
-const currentCity = () => (location.hash === '#montreal' ? 'montreal' : 'quebec');
-
-function regionFor(city) {
-  const r = REGIONS[city] || REGIONS.quebec;
+function regionForPlaces(places) {
+  if (!places.length) {
+    return new mapkit.CoordinateRegion(
+      new mapkit.Coordinate(46.84, -71.22),
+      new mapkit.CoordinateSpan(0.18, 0.24),
+    );
+  }
+  const lats = places.map((p) => p.lat);
+  const lons = places.map((p) => p.lon);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLon = Math.min(...lons);
+  const maxLon = Math.max(...lons);
+  const latSpan = Math.max((maxLat - minLat) * 1.8, 0.08);
+  const lonSpan = Math.max((maxLon - minLon) * 1.8, 0.12);
   return new mapkit.CoordinateRegion(
-    new mapkit.Coordinate(r.center[0], r.center[1]),
-    new mapkit.CoordinateSpan(r.span[0], r.span[1]),
+    new mapkit.Coordinate((minLat + maxLat) / 2, (minLon + maxLon) / 2),
+    new mapkit.CoordinateSpan(latSpan, lonSpan),
   );
 }
-
-function showCity(city, animateMap = true) {
-  cityButtons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cityBtn === city)));
-  legends.forEach((leg) => { leg.hidden = leg.dataset.legendCity !== city; });
-  if (map) {
-    if (animateMap) map.setRegionAnimated(regionFor(city));
-    else map.region = regionFor(city);
-  }
-  history.replaceState(null, '', `#${city}`);
-}
-cityButtons.forEach((b) => b.addEventListener('click', () => showCity(b.dataset.cityBtn)));
-// État initial (légende + aria). La carte est cadrée via le constructeur ci-dessous.
-cityButtons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cityBtn === currentCity())));
-legends.forEach((leg) => { leg.hidden = leg.dataset.legendCity !== currentCity(); });
 
 function initMapKit() {
   if (!window.mapkit) return;
@@ -111,7 +100,7 @@ function initMapKit() {
   // Région passée au constructeur → cadrage initial fiable (sinon MapKit
   // retombe sur 0°,0° avant qu'un map.region tardif ne s'applique).
   map = new mapkit.Map('l360-mapkit', {
-    region: regionFor(currentCity()),
+    region: regionForPlaces(DATA.places),
     mapType: mapkit.Map.MapTypes.Hybrid,          // satellite + libellés
     colorScheme: mapkit.Map.ColorSchemes.Dark,
     showsCompass: mapkit.FeatureVisibility.Hidden,

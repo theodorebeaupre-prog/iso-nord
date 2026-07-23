@@ -4,6 +4,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DATA="${DATA:-$ROOT/src/data/labs360.ts}"
 PAGE="${PAGE:-$ROOT/src/components/pages/Labs360.astro}"
 UI="${UI:-$ROOT/src/i18n/ui.ts}"
+SCRIPT="${SCRIPT:-$ROOT/src/scripts/labs360.js}"
 PASS=0
 FAIL=0
 pass(){ PASS=$((PASS + 1)); printf 'ok - %s\n' "$1"; }
@@ -57,8 +58,19 @@ test_labs_project_copy_quebec_only() {
   pass "les cartes projet Labs360 sont Québec seulement"
 }
 
+test_quebec_only_map_logic() {
+  ! rg -q 'REGIONS|currentCity|showCity|cityButtons|data-city-btn|#montreal|replaceState' "$SCRIPT" || {
+    fail "le JavaScript ne gère plus les villes ni le hash"; return;
+  }
+  rg -q 'function regionForPlaces' "$SCRIPT" || {
+    fail "la carte cadre les lieux visibles"; return;
+  }
+  pass "MapKit utilise une seule région calculée"
+}
+
 test_real_quebec_places_only
 test_quebec_only_markup_and_copy
 test_labs_project_copy_quebec_only
+test_quebec_only_map_logic
 printf '\n%s réussite(s), %s échec(s)\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
