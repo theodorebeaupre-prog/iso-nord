@@ -14,8 +14,9 @@ pass(){ PASS=$((PASS + 1)); printf 'ok - %s\n' "$1"; }
 fail(){ FAIL=$((FAIL + 1)); printf 'not ok - %s\n' "$1" >&2; }
 
 has_exact_real_quebec_places() {
-  local data="$1" expected id ids places quebec_city_count
+  local data="$1" expected removed id ids places quebec_city_count
   expected="maizerets patro-roc-amadour giffard centre-monseigneur-marcoux limoilou colline-parlementaire"
+  removed="vieux-quebec chute-montmorency ile-orleans vieux-port mont-royal centre-ville"
   places="$(sed -n '/^export const PLACES: Labs360Place\[\] = \[$/,/^[[:space:]]*\/\/ iso360:insert/p' "$data")"
   ids="$(printf '%s\n' "$places" | sed -n "s/^[[:space:]]*id: ['\"]\([^'\"]*\)['\"],$/\1/p")"
   quebec_city_count="$(printf '%s\n' "$places" | sed -n "s/^[[:space:]]*city: ['\"]quebec['\"],$/quebec/p" | awk 'NF { count++ } END { print count + 0 }')"
@@ -25,10 +26,13 @@ has_exact_real_quebec_places() {
   for id in $expected; do
     printf '%s\n' "$ids" | rg -qx -- "$id" || return 1
   done
+  for id in $removed; do
+    ! printf '%s\n' "$ids" | rg -qx -- "$id" || return 1
+  done
 }
 
 test_real_quebec_places_only() {
-  local fixture
+  local fixture removed_id
   has_exact_real_quebec_places "$DATA" || {
     fail "PLACES doit exposer exactement les six vrais lieux Québec"; return;
   }
@@ -45,6 +49,21 @@ test_real_quebec_places_only() {
     rm -f "$fixture" "$fixture.bak"
     fail "une future entrée Montréal demeure permise"; return;
   }
+  for removed_id in vieux-quebec chute-montmorency ile-orleans vieux-port mont-royal centre-ville; do
+    cp "$DATA" "$fixture"
+    sed -i.bak "/\\/\\/ iso360:insert/i\\
+  {\\
+    id: \"$removed_id\",\\
+    city: \"montreal\",\\
+    type: \"photo\", name: \"Ancien placeholder\",\\
+    desc: { fr: \"Test\", en: \"Test\" }, credit: \"\", lat: 45.5, lon: -73.6, media: \"test.jpg\",\\
+  }," "$fixture"
+    if has_exact_real_quebec_places "$fixture"; then
+      rm -f "$fixture" "$fixture.bak"
+      fail "ancien ID explicitement refusé: $removed_id"; return;
+    fi
+  done
+  cp "$DATA" "$fixture"
   sed -i.bak '/\/\/ iso360:insert/i\
   {\
     id: "septieme-quebec",\
