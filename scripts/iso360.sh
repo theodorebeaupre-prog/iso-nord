@@ -208,7 +208,7 @@ core_build_guard "$DATA_FILE" "$DATA_SNAPSHOT" || {
 
 # ─── 8. Commit + push (via le cœur) ──────────────────────────────────────────
 verb=$([[ -n "$REPLACE" ]] && echo "update" || echo "add")
-if ! core_commit_push "$DATA_FILE" "$verb" "$GEO_NAME" "$PUSH" "$LIVE_PAGE" "$FILE"; then
+if ! core_commit_push "$DATA_FILE" "$verb" "$GEO_NAME" "$PUSH" "$LIVE_PAGE" "$FILE" "$GEO_CITY"; then
   git -C "$REPO" reset -q -- "$DATA_FILE" 2>/dev/null || true
   cp "$DATA_SNAPSHOT" "$DATA_FILE"
   rm -f "$DATA_SNAPSHOT"

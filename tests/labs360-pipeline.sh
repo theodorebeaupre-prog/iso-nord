@@ -358,6 +358,38 @@ test_push_targets_head_to_main_explicitly() {
   fi
 }
 
+test_hidden_montreal_media_skips_misleading_live_poll() {
+  local case_dir="$TMP_ROOT/git-hidden-montreal"
+  mkdir -p "$case_dir/bin"
+  printf 'data\n' > "$case_dir/labs360.ts"
+  printf '%s\n' '#!/usr/bin/env bash' \
+    'case " $* " in' \
+    '  *" symbolic-ref "*) printf "main\\n";;' \
+    '  *" rev-parse "*) printf "deadbeef\\n";;' \
+    'esac' \
+    'exit 0' > "$case_dir/bin/git"
+  printf '%s\n' '#!/usr/bin/env bash' \
+    'printf called >> "$ISO_TEST_CURL_CALLED"' \
+    'exit 0' > "$case_dir/bin/curl"
+  chmod +x "$case_dir/bin/git" "$case_dir/bin/curl"
+
+  output="$(
+    export ISO_TEST_CURL_CALLED="$case_dir/curl.called"
+    PATH="$case_dir/bin:$PATH"
+    . "$ROOT/scripts/iso360-core.sh"
+    core_commit_push "$case_dir/labs360.ts" add "Montréal" 1 \
+      "https://example.invalid/labs/360" "montreal.jpg" "montreal" 2>&1
+  )"
+  if [ ! -e "$case_dir/curl.called" ] \
+    && printf '%s' "$output" | rg -q 'invisible.*pas.*preuve.*déploiement' \
+    && ! printf '%s' "$output" | rg -q 'EN LIGNE'; then
+    pass "un média Montréal invisible évite le polling et ne prétend pas être déployé"
+  else
+    printf '  sortie=%s\n' "$output" >&2
+    fail "un média Montréal invisible évite le polling trompeur"
+  fi
+}
+
 test_unique_helpers() {
   local case_dir="$TMP_ROOT/unique"
   mkdir -p "$case_dir/archive" "$case_dir/media"
@@ -770,6 +802,7 @@ test_git_commit_failure_propagates
 test_git_add_and_push_failures_propagate
 test_real_git_commit_succeeds
 test_push_targets_head_to_main_explicitly
+test_hidden_montreal_media_skips_misleading_live_poll
 test_unique_helpers
 test_ingest_can_be_sourced_without_running
 test_stale_lock_is_recovered

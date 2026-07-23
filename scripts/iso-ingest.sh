@@ -543,7 +543,7 @@ process(){
   fi
 
   # Commit + push
-  if ! core_commit_push "$DATA_FILE" "add" "$gname" "$PUSH" "$LIVE_PAGE" "$filename"; then
+  if ! core_commit_push "$DATA_FILE" "add" "$gname" "$PUSH" "$LIVE_PAGE" "$filename" "$gcity"; then
     git -C "$REPO" reset -q -- "$DATA_FILE" 2>/dev/null || true
     cp "$snapshot" "$DATA_FILE"
     rm -f "$snapshot"

@@ -2,10 +2,9 @@
 /**
  * Labs — « Québec en 360 » (labs-360-map).
  *
- * Carte stylisée (pas de vraie API carte) : grille SVG subtile, pins en
- * coordonnées %, Québec. Un pin ouvre le modal viewer —
- * panorama équirectangulaire (Pannellum, chargé lazy par labs360.js) ou clip
- * vidéo. Les données vivent dans src/data/labs360.ts.
+ * Carte satellite Apple Maps centrée sur les médias publiés à Québec. Un pin
+ * ouvre le viewer : panorama équirectangulaire (Pannellum, chargé à la demande),
+ * photographie ou clip vidéo. Les données vivent dans src/data/labs360.ts.
  */
 import '../../styles/global.css';
 import InstrumentHud from '../InstrumentHud.astro';
@@ -13,6 +12,7 @@ import LangSwitch from '../LangSwitch.astro';
 import { ui, type Lang } from '../../i18n/ui';
 import { pathFor, alternates, SITE } from '../../i18n/utils';
 import { PLACES, mediaUrl } from '../../data/labs360';
+import { hasVisiblePlaces } from '../../scripts/labs360-view.js';
 
 interface Props { lang: Lang }
 const { lang } = Astro.props;
@@ -26,6 +26,7 @@ const navAria = lang === 'fr' ? 'Navigation principale' : 'Main navigation';
 const pad = (n: number) => String(n).padStart(2, '0');
 
 const visiblePlaces = PLACES.filter((p) => p.city === 'quebec');
+const hasPlaces = hasVisiblePlaces(visiblePlaces);
 
 /* Données runtime pour labs360.js — médias résolus, description de la langue. */
 const runtime = {
@@ -114,20 +115,26 @@ const runtime = {
             <p class="l360-map__fallback">{l.mapUnavailable}</p>
           </div>
 
+          {!hasPlaces && (
+            <p class="l360-empty">{l.mediaSoon}</p>
+          )}
+
           <!-- Légende — mêmes lieux, tapables (mobile d'abord) -->
-          <ol class="l360-legend" aria-label={l.legendAria}>
-            {visiblePlaces.map((p, i) => (
-              <li>
-                <button type="button" class="l360-legend__item" data-place-id={p.id} aria-haspopup="dialog">
-                  <span class="l360-legend__num">{pad(i + 1)}</span>
-                  <span class="l360-legend__name">{p.name}</span>
-                  <em class="l360-legend__badge">
-                    {p.type === '360' ? l.badge360 : p.type === 'photo' ? l.badgePhoto : l.badgeVideo}
-                  </em>
-                </button>
-              </li>
-            ))}
-          </ol>
+          {hasPlaces && (
+            <ol class="l360-legend" aria-label={l.legendAria}>
+              {visiblePlaces.map((p, i) => (
+                <li>
+                  <button type="button" class="l360-legend__item" data-place-id={p.id} aria-haspopup="dialog">
+                    <span class="l360-legend__num">{pad(i + 1)}</span>
+                    <span class="l360-legend__name">{p.name}</span>
+                    <em class="l360-legend__badge">
+                      {p.type === '360' ? l.badge360 : p.type === 'photo' ? l.badgePhoto : l.badgeVideo}
+                    </em>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          )}
 
         </div>
       </section>
@@ -142,6 +149,7 @@ const runtime = {
         <p class="l360-modal__hint" hidden>{l.dragHint}</p>
         <p class="l360-modal__fallback" hidden>{l.mediaSoon}</p>
         <div class="l360-modal__info">
+          <p class="l360-modal__badge"></p>
           <h2 class="l360-modal__name" id="l360-title"></h2>
           <p class="l360-modal__desc"></p>
           <p class="l360-modal__credit"></p>
@@ -275,9 +283,16 @@ const runtime = {
         transition: transform 0.2s ease;
       }
       .l360-marker:hover { transform: scale(1.2); }
-      .l360-legend__badge {
+      .l360-legend__badge,
+      .l360-modal__badge {
+        font-family: var(--font-label);
+        font-size: 0.66rem;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
         font-style: normal;
         color: var(--accent);
+      }
+      .l360-legend__badge {
         margin-left: 0.5em;
       }
 
@@ -310,7 +325,17 @@ const runtime = {
       }
       .l360-legend__num { font-size: 0.66rem; color: var(--dim); }
       .l360-legend__name { font-size: 0.85rem; }
-      .l360-legend__badge { font-size: 0.66rem; }
+      .l360-empty {
+        margin: clamp(1.25rem, 3vw, 2rem) 0 0;
+        padding: var(--s-xl);
+        border: 1px solid var(--border);
+        font-family: var(--font-label);
+        font-size: 0.72rem;
+        letter-spacing: 0.22em;
+        text-align: center;
+        text-transform: uppercase;
+        color: var(--dim);
+      }
 
       /* ── Modal ── */
       /* user-select: none — le drag du panorama traverse la fiche du lieu
@@ -387,6 +412,7 @@ const runtime = {
         padding: var(--s-lg) var(--s-xl) var(--s-xl);
         border-top: 1px solid var(--border);
       }
+      .l360-modal__badge { margin-bottom: 0.45rem; }
       .l360-modal__name {
         font-family: var(--font-display);
         font-weight: 200;

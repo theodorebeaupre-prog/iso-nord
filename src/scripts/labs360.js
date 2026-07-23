@@ -15,6 +15,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
 import { regionForPlaces } from './labs360-map.js';
 import { shouldAnimateModalOpen } from './labs360-motion.js';
+import { badgeForType } from './labs360-view.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -136,6 +137,7 @@ const backdrop = modal.querySelector('.l360-modal__backdrop');
 const mediaHost = document.getElementById('l360-media');
 const hintEl = modal.querySelector('.l360-modal__hint');
 const fallbackEl = modal.querySelector('.l360-modal__fallback');
+const badgeEl = modal.querySelector('.l360-modal__badge');
 const titleEl = document.getElementById('l360-title');
 const descEl = modal.querySelector('.l360-modal__desc');
 const creditEl = modal.querySelector('.l360-modal__credit');
@@ -210,6 +212,7 @@ function openModal(placeId, trigger) {
   lastTrigger = trigger;
 
   titleEl.textContent = place.name;
+  badgeEl.textContent = badgeForType(place.type, DATA);
   descEl.textContent = place.desc;
   // Crédit affiché seulement s'il est renseigné (voir data/labs360.ts).
   creditEl.textContent = place.credit ? `${DATA.creditPrefix} ${place.credit}` : '';

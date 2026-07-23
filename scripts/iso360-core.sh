@@ -302,10 +302,10 @@ core_build_guard() {
   core_ok "Build OK (10 pages)"
 }
 
-# core_commit_push <data_file> <verb> <name> <push> <live_page> <filename>
+# core_commit_push <data_file> <verb> <name> <push> <live_page> <filename> [city]
 # NB : MEDIA_BASE_URL doit être exporté par l'appelant (réchauffe le cache edge).
 core_commit_push() {
-  local data_file="$1" verb="$2" name="$3" push="$4" live_page="$5" filename="$6"
+  local data_file="$1" verb="$2" name="$3" push="$4" live_page="$5" filename="$6" city="${7:-quebec}"
   local before_head attempt body
   core_require_main_branch . || return 1
   before_head="$(git rev-parse HEAD)" || { core_warn "Impossible de lire HEAD"; return 1; }
@@ -325,6 +325,10 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" -- "$data_file"; then
     return 1
   fi
   core_ok "Poussé → déploiement Vercel en cours"
+  if [[ "$city" == "montreal" ]]; then
+    core_b "Média Montréal invisible sur la page actuelle : push confirmé, mais pas de preuve de déploiement live possible."
+    return 0
+  fi
   attempt=1
   while [[ "$attempt" -le "${ISO_NORD_DEPLOY_ATTEMPTS:-18}" ]]; do
     body=$(curl --silent --show-error --connect-timeout "${ISO_NORD_CURL_CONNECT_TIMEOUT:-5}" \

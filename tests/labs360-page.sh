@@ -7,26 +7,83 @@ UI="${UI:-$ROOT/src/i18n/ui.ts}"
 SCRIPT="${SCRIPT:-$ROOT/src/scripts/labs360.js}"
 MAP_HELPER="${MAP_HELPER:-$ROOT/src/scripts/labs360-map.js}"
 MOTION_HELPER="${MOTION_HELPER:-$ROOT/src/scripts/labs360-motion.js}"
+VIEW_HELPER="${VIEW_HELPER:-$ROOT/src/scripts/labs360-view.js}"
 PASS=0
 FAIL=0
 pass(){ PASS=$((PASS + 1)); printf 'ok - %s\n' "$1"; }
 fail(){ FAIL=$((FAIL + 1)); printf 'not ok - %s\n' "$1" >&2; }
 
-test_real_quebec_places_only() {
-  local expected id ids id_count places quebec_city_count
+has_exact_real_quebec_places() {
+  local data="$1" expected id ids places quebec_city_count
   expected="maizerets patro-roc-amadour giffard centre-monseigneur-marcoux limoilou colline-parlementaire"
-  places="$(sed -n '/^export const PLACES: Labs360Place\[\] = \[$/,/^[[:space:]]*\/\/ iso360:insert/p' "$DATA")"
+  places="$(sed -n '/^export const PLACES: Labs360Place\[\] = \[$/,/^[[:space:]]*\/\/ iso360:insert/p' "$data")"
   ids="$(printf '%s\n' "$places" | sed -n "s/^[[:space:]]*id: ['\"]\([^'\"]*\)['\"],$/\1/p")"
-  id_count="$(printf '%s\n' "$ids" | awk 'NF { count++ } END { print count + 0 }')"
   quebec_city_count="$(printf '%s\n' "$places" | sed -n "s/^[[:space:]]*city: ['\"]quebec['\"],$/quebec/p" | awk 'NF { count++ } END { print count + 0 }')"
 
-  [ "$id_count" -eq 6 ] || { fail "exactement six IDs dans PLACES (reçu: $id_count)"; return; }
-  [ "$quebec_city_count" -eq 6 ] || { fail "les six lieux sont tous à Québec (reçu: $quebec_city_count)"; return; }
+  [ "$quebec_city_count" -eq 6 ] || return 1
 
   for id in $expected; do
-    printf '%s\n' "$ids" | rg -qx -- "$id" || { fail "lieu réel présent: $id"; return; }
+    printf '%s\n' "$ids" | rg -qx -- "$id" || return 1
   done
-  pass "PLACES contient exactement les six vrais lieux Québec"
+}
+
+test_real_quebec_places_only() {
+  local fixture
+  has_exact_real_quebec_places "$DATA" || {
+    fail "PLACES doit exposer exactement les six vrais lieux Québec"; return;
+  }
+  fixture="$(mktemp)"
+  cp "$DATA" "$fixture"
+  sed -i.bak '/\/\/ iso360:insert/i\
+  {\
+    id: "futur-montreal",\
+    city: "montreal",\
+    type: "photo", name: "Test",\
+    desc: { fr: "Test", en: "Test" }, credit: "", lat: 45.5, lon: -73.6, media: "test.jpg",\
+  },' "$fixture"
+  has_exact_real_quebec_places "$fixture" || {
+    rm -f "$fixture" "$fixture.bak"
+    fail "une future entrée Montréal demeure permise"; return;
+  }
+  sed -i.bak '/\/\/ iso360:insert/i\
+  {\
+    id: "septieme-quebec",\
+    city: "quebec",\
+    type: "photo", name: "Test",\
+    desc: { fr: "Test", en: "Test" }, credit: "", lat: 46.8, lon: -71.2, media: "test.jpg",\
+  },' "$fixture"
+  if has_exact_real_quebec_places "$fixture"; then
+    rm -f "$fixture" "$fixture.bak"
+    fail "un septième lieu Québec doit faire échouer le contrat"; return;
+  fi
+  rm -f "$fixture" "$fixture.bak"
+  pass "les lieux visibles sont exactement les six Québec; Montréal futur est permis"
+}
+
+test_modal_badge_and_empty_state() {
+  rg -Fq 'class="l360-modal__badge"' "$PAGE" &&
+    rg -Fq 'const badgeEl = modal.querySelector(' "$SCRIPT" &&
+    rg -Fq 'badgeEl.textContent = badgeForType(place.type, DATA);' "$SCRIPT" || {
+      fail "la modale expose et remplit son badge depuis le type runtime"; return;
+    }
+  rg -Fq 'const hasPlaces = hasVisiblePlaces(visiblePlaces);' "$PAGE" &&
+    rg -Fq '{!hasPlaces && (' "$PAGE" &&
+    rg -Fq '{hasPlaces && (' "$PAGE" &&
+    rg -Fq '<p class="l360-empty">{l.mediaSoon}</p>' "$PAGE" || {
+      fail "l’état zéro bilingue réutilise mediaSoon"; return;
+    }
+  node --input-type=module - "$VIEW_HELPER" <<'NODE'
+import assert from 'node:assert/strict';
+const { badgeForType, hasVisiblePlaces } = await import(`file://${process.argv[2]}`);
+const labels = { badge360: '360°', badgeVideo: 'Clip', badgePhoto: 'Photo' };
+assert.equal(badgeForType('360', labels), '360°');
+assert.equal(badgeForType('photo', labels), 'Photo');
+assert.equal(badgeForType('video', labels), 'Clip');
+assert.equal(hasVisiblePlaces([]), false);
+assert.equal(hasVisiblePlaces([{ id: 'maizerets' }]), true);
+NODE
+  [ "$?" -eq 0 ] || { fail "le contrat badge/état zéro se comporte correctement"; return; }
+  pass "badge modal et état zéro suivent les données runtime"
 }
 
 test_quebec_only_markup_and_copy() {
@@ -177,6 +234,7 @@ NODE
 }
 
 test_real_quebec_places_only
+test_modal_badge_and_empty_state
 test_quebec_only_markup_and_copy
 test_labs_project_copy_quebec_only
 test_quebec_only_map_logic
