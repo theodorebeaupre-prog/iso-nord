@@ -167,6 +167,8 @@ le fichier est mis en quarantaine visible plutôt que placé au hasard sur la ca
 
 - Le LaunchAgent tourne sous le compte utilisateur (accès au repo + `git push` + SSD).
 - Lecture des seuls fichiers de `_inbox/` ; écritures confinées au tunnel + repo.
+- Publication refusée hors de la branche locale `main`; le push cible explicitement
+  `HEAD:main`.
 - `git push` automatique : le build garde-fou empêche de pousser un site cassé.
 - Doc d'installation/désinstallation du LaunchAgent ajoutée au handoff (`launchctl load`).
 - Rappel handoff : ne jamais réutiliser un nom de fichier média (cache 1 an) → noms versionnés.

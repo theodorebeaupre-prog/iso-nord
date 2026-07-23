@@ -35,6 +35,71 @@ assert_eq() {
   return 1
 }
 
+test_extract_meta_preserves_empty_gps_and_spaced_date() {
+  local case_dir="$TMP_ROOT/meta-empty-gps"
+  mkdir -p "$case_dir/bin"
+  printf '%s\n' '#!/usr/bin/env bash' \
+    'printf '\''[{"DateTimeOriginal":"2026:07:23 14:05:11"}]\n'\''' \
+    > "$case_dir/bin/exiftool"
+  chmod +x "$case_dir/bin/exiftool"
+
+  local lat="" lon="" dt=""
+  IFS='|' read -r lat lon dt <<EOF
+$(
+  PATH="$case_dir/bin:$PATH"
+  . "$ROOT/scripts/iso360-core.sh"
+  core_extract_meta "$case_dir/photo.jpg"
+)
+EOF
+  if [ -z "$lat" ] && [ -z "$lon" ] && [ "$dt" = "2026:07:23 14:05:11" ]; then
+    pass "les métadonnées gardent GPS vide et date complète sans ambiguïté"
+  else
+    printf '  lat=%s lon=%s date=%s\n' "$lat" "$lon" "$dt" >&2
+    fail "les métadonnées gardent GPS vide et date complète sans ambiguïté"
+  fi
+}
+
+test_photo_without_gps_or_date_uses_filename_fallback() {
+  local case_dir="$TMP_ROOT/meta-filename-fallback"
+  mkdir -p "$case_dir/inbox" "$case_dir/videos" "$case_dir/photos" \
+    "$case_dir/bin" "$case_dir/repo/src/data"
+  printf 'photo\n' > "$case_dir/inbox/chute-montmorency.jpg"
+  printf '// iso360:insert\n' > "$case_dir/repo/src/data/labs360.ts"
+  printf '%s\n' '#!/usr/bin/env bash' 'printf '\''[{}]\n'\''' \
+    > "$case_dir/bin/exiftool"
+  chmod +x "$case_dir/bin/exiftool"
+
+  if (
+    export PATH="$case_dir/bin:$PATH"
+    export ISO_NORD_INGEST_SOURCE_ONLY=1
+    export ISO_NORD_MEDIA_ROOT="$case_dir"
+    export ISO_NORD_REPO="$case_dir/repo"
+    . "$ROOT/scripts/iso-ingest.sh"
+    DRY=1
+    detect_type() { printf 'photo\n'; }
+    core_forward_geocode() {
+      [ "$1" = "chute-montmorency" ] || return 1
+      printf '46.8900 -71.1500\n'
+    }
+    core_geocode() {
+      [ "$LAT" = "46.8900" ] && [ "$LON" = "-71.1500" ] && [ -z "$DT" ] \
+        || return 1
+      printf '{"lat":46.89,"lon":-71.15,"dt":"","ym":"","name":"Chute Montmorency","city":"quebec","id":"chute-montmorency"}\n'
+    }
+    sips() {
+      for last do :; done
+      printf 'web\n' > "$last"
+    }
+    process "$case_dir/inbox/chute-montmorency.jpg" \
+      >"$case_dir/process.log" 2>&1
+  ); then
+    pass "une photo sans GPS ni date utilise le nom de fichier"
+  else
+    cat "$case_dir/process.log" >&2
+    fail "une photo sans GPS ni date utilise le nom de fichier"
+  fi
+}
+
 test_geocode_outage_fails() {
   (
     . "$ROOT/scripts/iso360-core.sh"
@@ -167,7 +232,7 @@ test_build_accepts_exactly_ten_pages() {
 test_git_commit_failure_propagates() {
   local case_dir="$TMP_ROOT/git-failure"
   mkdir -p "$case_dir/bin"
-  printf '#!/usr/bin/env bash\n[ "$1" != commit ]\n' > "$case_dir/bin/git"
+  printf '#!/usr/bin/env bash\nif [ "$1" = symbolic-ref ]; then printf "main\\n"; exit 0; fi\n[ "$1" != commit ]\n' > "$case_dir/bin/git"
   chmod +x "$case_dir/bin/git"
   printf 'data\n' > "$case_dir/labs360.ts"
 
@@ -189,7 +254,7 @@ test_git_add_and_push_failures_propagate() {
   for phase in add push; do
     case_dir="$TMP_ROOT/git-$phase"
     mkdir -p "$case_dir/bin"
-    printf '#!/usr/bin/env bash\nphase="$ISO_TEST_GIT_PHASE"\ncase "$1" in\n  rev-parse) printf "deadbeef\\n";;\n  "$phase") exit 1;;\n  *) exit 0;;\nesac\n' > "$case_dir/bin/git"
+    printf '#!/usr/bin/env bash\nphase="$ISO_TEST_GIT_PHASE"\ncase "$1" in\n  symbolic-ref) printf "main\\n";;\n  rev-parse) printf "deadbeef\\n";;\n  "$phase") exit 1;;\n  *) exit 0;;\nesac\n' > "$case_dir/bin/git"
     chmod +x "$case_dir/bin/git"
     printf 'data\n' > "$case_dir/labs360.ts"
     (
@@ -234,6 +299,47 @@ test_real_git_commit_succeeds() {
     pass "le chemin Git réel add + commit fonctionne"
   else
     fail "le chemin Git réel add + commit fonctionne"
+  fi
+}
+
+test_push_targets_head_to_main_explicitly() {
+  local case_dir="$TMP_ROOT/git-push-target" real_git=""
+  real_git="$(command -v git)"
+  mkdir -p "$case_dir/repo/src/data" "$case_dir/bin"
+  git init -q --bare "$case_dir/remote.git"
+  (
+    cd "$case_dir/repo"
+    git init -q
+    git symbolic-ref HEAD refs/heads/main
+    git config user.name "Test"
+    git config user.email "test@example.invalid"
+    printf 'avant\n' > src/data/labs360.ts
+    git add src/data/labs360.ts
+    git commit -qm initial
+    git remote add origin "$case_dir/remote.git"
+    git push -q -u origin main
+  )
+  printf '%s\n' '#!/usr/bin/env bash' \
+    'if [ "$1" = push ]; then printf "%s\n" "$*" > "$ISO_TEST_PUSH_ARGS"; fi' \
+    'exec "$ISO_TEST_REAL_GIT" "$@"' > "$case_dir/bin/git"
+  printf '%s\n' '#!/usr/bin/env bash' 'printf published' > "$case_dir/bin/curl"
+  chmod +x "$case_dir/bin/git" "$case_dir/bin/curl"
+  printf 'après\n' > "$case_dir/repo/src/data/labs360.ts"
+
+  if (
+    cd "$case_dir/repo"
+    export ISO_TEST_REAL_GIT="$real_git"
+    export ISO_TEST_PUSH_ARGS="$case_dir/push.args"
+    export ISO_NORD_DEPLOY_ATTEMPTS=1
+    PATH="$case_dir/bin:$PATH"
+    . "$ROOT/scripts/iso360-core.sh"
+    core_commit_push "$case_dir/repo/src/data/labs360.ts" add "Test" 1 \
+      "https://example.invalid/labs/360" "published" >/dev/null 2>&1
+  ) && [ "$(cat "$case_dir/push.args")" = "push -q origin HEAD:main" ]; then
+    pass "le push cible explicitement HEAD:main"
+  else
+    printf '  push=%s\n' "$(cat "$case_dir/push.args" 2>/dev/null)" >&2
+    fail "le push cible explicitement HEAD:main"
   fi
 }
 
@@ -370,6 +476,15 @@ test_commit_failure_keeps_original() {
     "$case_dir/photos" "$case_dir/bin" "$case_dir/repo/src/data"
   printf 'vidéo\n' > "$case_dir/inbox/test.mp4"
   printf '// iso360:insert\n' > "$case_dir/repo/src/data/labs360.ts"
+  (
+    cd "$case_dir/repo"
+    git init -q
+    git symbolic-ref HEAD refs/heads/main
+    git config user.name "Test"
+    git config user.email "test@example.invalid"
+    git add src/data/labs360.ts
+    git commit -qm initial
+  )
   printf '#!/usr/bin/env bash\nfor last do :; done\nprintf poster > "$last"\n' \
     > "$case_dir/bin/ffmpeg"
   chmod +x "$case_dir/bin/ffmpeg"
@@ -381,7 +496,7 @@ test_commit_failure_keeps_original() {
     export ISO_NORD_REPO="$case_dir/repo"
     . "$ROOT/scripts/iso-ingest.sh"
     detect_type() { printf 'video\n'; }
-    core_extract_meta() { printf '46.81 -71.20 2026:07:23\n'; }
+    core_extract_meta() { printf '46.81|-71.20|2026:07:23\n'; }
     core_geocode() {
       printf '{"lat":46.81,"lon":-71.20,"dt":"2026:07:23","ym":"2026-07","name":"Test","city":"quebec","id":"test"}\n'
     }
@@ -406,6 +521,15 @@ test_archive_retry_does_not_republish() {
     "$case_dir/videos" "$case_dir/photos" "$case_dir/bin" "$case_dir/repo/src/data"
   printf 'vidéo\n' > "$case_dir/inbox-processing/test.mp4"
   printf '// iso360:insert\n' > "$case_dir/repo/src/data/labs360.ts"
+  (
+    cd "$case_dir/repo"
+    git init -q
+    git symbolic-ref HEAD refs/heads/main
+    git config user.name "Test"
+    git config user.email "test@example.invalid"
+    git add src/data/labs360.ts
+    git commit -qm initial
+  )
   printf '#!/usr/bin/env bash\nfor last do :; done\nprintf poster > "$last"\n' \
     > "$case_dir/bin/ffmpeg"
   chmod +x "$case_dir/bin/ffmpeg"
@@ -417,7 +541,7 @@ test_archive_retry_does_not_republish() {
     export ISO_NORD_REPO="$case_dir/repo"
     . "$ROOT/scripts/iso-ingest.sh"
     detect_type() { printf 'video\n'; }
-    core_extract_meta() { printf '46.81 -71.20 2026:07:23\n'; }
+    core_extract_meta() { printf '46.81|-71.20|2026:07:23\n'; }
     core_geocode() {
       printf '{"lat":46.81,"lon":-71.20,"dt":"2026:07:23","ym":"2026-07","name":"Test","city":"quebec","id":"test"}\n'
     }
@@ -497,6 +621,77 @@ test_crash_between_commit_and_push_resumes_push_only() {
   fi
 }
 
+test_crash_after_wire_rolls_back_dirty_repo_for_replay() {
+  local case_dir="$TMP_ROOT/wire-before-commit" job_id="" status=0
+  mkdir -p "$case_dir/media/inbox-processing" "$case_dir/repo/src/data"
+  (
+    cd "$case_dir/repo"
+    git init -q
+    git symbolic-ref HEAD refs/heads/main
+    git config user.name "Test"
+    git config user.email "test@example.invalid"
+    printf '// iso360:insert\n' > src/data/labs360.ts
+    git add src/data/labs360.ts
+    git commit -qm initial
+  )
+  printf 'photo\n' > "$case_dir/media/inbox-processing/test.jpg"
+  (
+    export ISO_NORD_INGEST_SOURCE_ONLY=1
+    export ISO_NORD_MEDIA_ROOT="$case_dir/media"
+    export ISO_NORD_REPO="$case_dir/repo"
+    . "$ROOT/scripts/iso-ingest.sh"
+    job_id="$(ensure_job_marker "$case_dir/media/inbox-processing/test.jpg")"
+    mark_job_wiring "$case_dir/media/inbox-processing/test.jpg"
+    printf '// ingest-job:%s\n' "$job_id" >> "$DATA_FILE"
+    job_ready_for_archive "$case_dir/media/inbox-processing/test.jpg" "$job_id"
+    status=$?
+    printf '%s\n%s\n' "$job_id" "$status" > "$case_dir/result"
+  )
+  job_id="$(sed -n '1p' "$case_dir/result")"
+  status="$(sed -n '2p' "$case_dir/result")"
+  if [ "$status" = "1" ] \
+    && git -C "$case_dir/repo" diff --quiet -- src/data/labs360.ts \
+    && git -C "$case_dir/repo" diff --cached --quiet -- src/data/labs360.ts \
+    && ! grep -Fq "ingest-job:$job_id" "$case_dir/repo/src/data/labs360.ts"; then
+    pass "un crash après wire rollback le dépôt réel pour rejouer"
+  else
+    git -C "$case_dir/repo" status --short >&2
+    fail "un crash après wire rollback le dépôt réel pour rejouer"
+  fi
+}
+
+test_feature_branch_is_rejected_before_publication() {
+  local case_dir="$TMP_ROOT/feature-branch"
+  mkdir -p "$case_dir/media/inbox" "$case_dir/repo/src/data"
+  git init -q --bare "$case_dir/remote.git"
+  (
+    cd "$case_dir/repo"
+    git init -q
+    git symbolic-ref HEAD refs/heads/main
+    git config user.name "Test"
+    git config user.email "test@example.invalid"
+    printf '// iso360:insert\n' > src/data/labs360.ts
+    git add src/data/labs360.ts
+    git commit -qm initial
+    git remote add origin "$case_dir/remote.git"
+    git push -q -u origin main
+    git checkout -qb feature/test
+  )
+  printf 'photo\n' > "$case_dir/media/inbox/test.jpg"
+
+  if ! ISO_NORD_MEDIA_ROOT="$case_dir/media" \
+      ISO_NORD_REPO="$case_dir/repo" \
+      "$ROOT/scripts/iso-ingest.sh" >/dev/null 2>&1 \
+    && [ -f "$case_dir/media/inbox/test.jpg" ] \
+    && [ ! -e "$case_dir/media/inbox-publies/test.jpg" ] \
+    && [ -z "$(find "$case_dir/media/panoramas" "$case_dir/media/videos" \
+      "$case_dir/media/photos" -type f -print 2>/dev/null)" ]; then
+    pass "une branche feature échoue avant publication et archivage"
+  else
+    fail "une branche feature échoue avant publication et archivage"
+  fi
+}
+
 test_dry_run_creates_no_persistent_state() {
   local case_dir="$TMP_ROOT/dry-run"
   mkdir -p "$case_dir/inbox"
@@ -531,7 +726,7 @@ test_dry_run_processes_without_publishing() {
     . "$ROOT/scripts/iso-ingest.sh"
     DRY=1
     detect_type() { printf 'video\n'; }
-    core_extract_meta() { printf '46.81 -71.20 2026:07:23\n'; }
+    core_extract_meta() { printf '46.81|-71.20|2026:07:23\n'; }
     core_geocode() {
       printf '{"lat":46.81,"lon":-71.20,"dt":"2026:07:23","ym":"2026-07","name":"Test","city":"quebec","id":"test"}\n'
     }
@@ -547,6 +742,8 @@ test_dry_run_processes_without_publishing() {
   fi
 }
 
+test_extract_meta_preserves_empty_gps_and_spaced_date
+test_photo_without_gps_or_date_uses_filename_fallback
 test_geocode_outage_fails
 test_publish_never_overwrites
 test_publish_curl_is_bounded
@@ -556,6 +753,7 @@ test_build_accepts_exactly_ten_pages
 test_git_commit_failure_propagates
 test_git_add_and_push_failures_propagate
 test_real_git_commit_succeeds
+test_push_targets_head_to_main_explicitly
 test_unique_helpers
 test_ingest_can_be_sourced_without_running
 test_stale_lock_is_recovered
@@ -565,6 +763,8 @@ test_pid_reuse_and_reboot_do_not_keep_stale_lock
 test_commit_failure_keeps_original
 test_archive_retry_does_not_republish
 test_crash_between_commit_and_push_resumes_push_only
+test_crash_after_wire_rolls_back_dirty_repo_for_replay
+test_feature_branch_is_rejected_before_publication
 test_dry_run_creates_no_persistent_state
 test_dry_run_processes_without_publishing
 

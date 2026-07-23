@@ -64,6 +64,12 @@ Le NAS opère sur la branche **`main`** → **il faut merger `feat/labs360-inbox
      départ du processus pour détecter reboot et réutilisation de PID;
    - chaque fichier passe par `inbox-processing/` avec un job ID durable écrit
      dans `labs360.ts`; un archivage raté reprend sans republier;
+   - un crash entre wire/build et commit restaure `labs360.ts` puis rejoue le job;
+     un crash après commit reprend seulement le push;
+   - publication permise uniquement sur la branche `main`; les pushes ciblent
+     explicitement `HEAD:main`;
+   - le protocole métadonnées conserve sans ambiguïté un GPS vide et une date avec
+     espaces sous Bash 3.2; une photo sans GPS/date retombe bien sur son nom;
    - `iso-ingest --dry-run` ne crée ni dossier, lock, log, média ni changement repo;
    - tests reproductibles : `tests/labs360-pipeline.sh`.
 
@@ -148,7 +154,8 @@ ssh -i ~/.ssh/id_ed25519_macpro theodorebeaupre@100.99.244.24 'bash -lc "
 ## Pièges / points d'attention
 - **Deux clones du même repo** (MacBook + NAS). En régime normal le **NAS est le seul
   à auto-pousser**. Après ça, faire `git pull` sur le MacBook avant tout dev. `iso-ingest`
-  exige un `git pull --ff-only origin main` réussi en tête de lot avant de publier.
+  exige d'être sur la branche `main`, puis un `git pull --ff-only origin main`
+  réussi en tête de lot avant de publier; le push est `HEAD:main`.
 - **Cache média 1 an** : jamais réutiliser un nom de fichier média publié (noms versionnés
   `<id>-<AAAA-MM>[-N].<ext>`); la publication refuse tout chemin déjà présent.
 - **Dossiers frères** de `inbox/` (`inbox-corriger/`, `inbox-processing/`,

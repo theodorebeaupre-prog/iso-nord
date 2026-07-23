@@ -232,7 +232,9 @@ nom ou pin n'est inventé. Les collisions reçoivent un suffixe (`-2`, `-3`…) 
 publication média existante n'est jamais écrasée (cache immutable).
 Chaque original est d'abord réclamé dans `inbox-processing/`. Son job ID durable
 est aussi écrit dans `labs360.ts`; si l'archive rate après le push, une relance
-retente uniquement le `mv`, sans republier le média ni créer un deuxième pin.
+retente uniquement le `mv`, sans republier le média ni créer un deuxième pin. Un
+crash entre le câblage/build et le commit restaure `labs360.ts` depuis le commit
+de départ puis rejoue le job; un crash après le commit reprend seulement le push.
 
 **Dépendances :** `brew install exiftool ffmpeg`. **Ne stitche PAS** les 35 segments
 DJI bruts (ça reste la commande manuelle `iso360`) — l'inbox n'accepte que des
@@ -254,7 +256,9 @@ Le verrou protège aussi sa fenêtre d'initialisation et valide boot + PID + heu
 départ du processus avant de considérer un propriétaire vivant; reboot et PID
 réutilisé ne bloquent donc pas la boîte indéfiniment.
 `--dry-run` reste en lecture seule (aucun dossier, lock, log, média ou changement git).
-Avant l'archive, le pipeline exige build = 10 pages, commit et, sauf `--no-push`, push réussi.
+Avant tout traitement, le pipeline exige la branche locale `main`. Avant l'archive,
+il exige build = 10 pages, commit et, sauf `--no-push`, push réussi. Le push cible
+explicitement `HEAD:main`.
 
 **Preflight NAS avant de charger le watcher :** vérifier Node `>=22.12`, puis
 `command -v exiftool ffmpeg`, exécuter `npm ci`, les tests shell et le build.

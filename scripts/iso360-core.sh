@@ -12,7 +12,9 @@ core_ok(){ printf '\033[32m✓\033[0m %s\n' "$*" >&2; }
 core_info(){ printf '\033[36m•\033[0m %s\n' "$*" >&2; }
 core_warn(){ printf '\033[33m⚠ %s\033[0m\n' "$*" >&2; }
 
-# core_extract_meta <file> → "LAT LON DT" (champs vides si absents)
+# core_extract_meta <file> → "LAT|LON|DT" (champs vides si absents)
+# Le séparateur non blanc est volontaire : `read` fusionne les espaces et ne peut
+# pas distinguer « GPS vide + date avec espaces » sous le Bash 3.2 de macOS.
 # exiftool lit le GPS des JPEG (drone/photo) ET des MP4/MOV. Sortie JSON avec
 # labels → on ne dépend pas de l'ordre/du nombre de lignes.
 core_extract_meta() {
@@ -22,10 +24,10 @@ import sys, json
 try:
     d=json.load(sys.stdin)[0]
 except Exception:
-    print("  "); sys.exit(0)
+    print("||"); sys.exit(0)
 lat=d.get("GPSLatitude",""); lon=d.get("GPSLongitude","")
 dt=d.get("DateTimeOriginal") or d.get("CreateDate") or ""
-print(f"{lat} {lon} {dt}")
+print(f"{lat}|{lon}|{dt}")
 '
 }
 
@@ -200,6 +202,19 @@ core_file_is_clean() {
     && git -C "$repo" diff --cached --quiet -- "$file"
 }
 
+# core_require_main_branch [repo] → refuse toute publication hors de main
+core_require_main_branch() {
+  local repo="${1:-.}" branch=""
+  branch="$(git -C "$repo" symbolic-ref --quiet --short HEAD 2>/dev/null)" || {
+    core_warn "Publication refusée : HEAD détachée"
+    return 1
+  }
+  [[ "$branch" == "main" ]] || {
+    core_warn "Publication refusée : branche '$branch' (main requise)"
+    return 1
+  }
+}
+
 # core_publish_verify <local> <destdir> <baseurl> <filename> → exit≠0 si échec
 core_publish_verify() {
   local local_file="$1" destdir="$2" baseurl="$3" filename="$4" target tmp_file
@@ -292,6 +307,7 @@ core_build_guard() {
 core_commit_push() {
   local data_file="$1" verb="$2" name="$3" push="$4" live_page="$5" filename="$6"
   local before_head attempt body
+  core_require_main_branch . || return 1
   before_head="$(git rev-parse HEAD)" || { core_warn "Impossible de lire HEAD"; return 1; }
   git add -- "$data_file" || { core_warn "git add a échoué"; return 1; }
   if ! git commit -q --only -m "feat(labs360): $verb '$name' (iso-ingest, auto-geo)
@@ -303,7 +319,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" -- "$data_file"; then
   fi
   core_ok "Commit créé"
   [[ "$push" == "1" ]] || { core_b "Commit local (pas de push)."; return 0; }
-  if ! git push -q origin main; then
+  if ! git push -q origin HEAD:main; then
     git reset --soft "$before_head" 2>/dev/null || true
     core_warn "git push a échoué; le commit automatique a été annulé"
     return 1

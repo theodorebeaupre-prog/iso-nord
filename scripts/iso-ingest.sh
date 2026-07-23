@@ -184,7 +184,7 @@ job_marker_path() {
 }
 
 ensure_job_marker() {
-  local f="$1" marker="" tmp="" job_id="" push_mode=""
+  local f="$1" marker="" tmp="" job_id=""
   if [[ "$DRY" == "1" ]]; then
     printf 'dry-run\n'
     return 0
@@ -195,7 +195,8 @@ ensure_job_marker() {
   else
     job_id="$(date +%s)-$$-$RANDOM"
     tmp="$marker.tmp.$$.$RANDOM"
-    printf '%s\npush=%s\npublished=0\n' "$job_id" "$PUSH" > "$tmp" || return 1
+    printf '%s\npush=%s\npublished=0\nphase=claimed\nbase_head=\n' \
+      "$job_id" "$PUSH" > "$tmp" || return 1
     mv "$tmp" "$marker" || {
       rm -f "$tmp"
       return 1
@@ -211,48 +212,89 @@ job_marker_value() {
   sed -n "s/^${key}=//p" "$marker" 2>/dev/null | head -1
 }
 
-mark_job_published() {
-  local f="$1" marker="" tmp="" job_id="" push_mode=""
+write_job_marker() {
+  local f="$1" published="$2" phase="$3" base_head="$4"
+  local marker="" tmp="" job_id="" push_mode=""
   marker="$(job_marker_path "$f")"
   job_id=$(sed -n '1p' "$marker" 2>/dev/null)
   push_mode=$(job_marker_value "$f" push)
   [[ "$job_id" =~ ^[a-zA-Z0-9._-]+$ && "$push_mode" =~ ^[01]$ ]] || return 1
   tmp="$marker.tmp.$$.$RANDOM"
-  printf '%s\npush=%s\npublished=1\n' "$job_id" "$push_mode" > "$tmp" || return 1
+  printf '%s\npush=%s\npublished=%s\nphase=%s\nbase_head=%s\n' \
+    "$job_id" "$push_mode" "$published" "$phase" "$base_head" > "$tmp" || return 1
   mv "$tmp" "$marker" || {
     rm -f "$tmp"
     return 1
   }
 }
 
+mark_job_wiring() {
+  local f="$1" base_head=""
+  core_require_main_branch "$REPO" || return 1
+  base_head="$(git -C "$REPO" rev-parse HEAD 2>/dev/null)" || return 1
+  write_job_marker "$f" 0 wiring "$base_head"
+}
+
+mark_job_claimed() {
+  write_job_marker "$1" 0 claimed ""
+}
+
+mark_job_published() {
+  local f="$1" base_head=""
+  base_head=$(job_marker_value "$f" base_head)
+  write_job_marker "$f" 1 published "$base_head"
+}
+
 # Retourne 0 si on peut archiver sans republier, 1 si le job est neuf, 2 si un
 # ancien job est reconnu mais que son push ne peut pas être prouvé/récupéré.
 job_ready_for_archive() {
-  local f="$1" job_id="$2" push_mode="" published="" data_rel=""
+  local f="$1" job_id="$2" push_mode="" published="" phase="" base_head=""
+  local data_rel="" current_head=""
   [[ "$job_id" != "dry-run" ]] || return 1
   push_mode=$(job_marker_value "$f" push)
   published=$(job_marker_value "$f" published)
+  phase=$(job_marker_value "$f" phase)
+  base_head=$(job_marker_value "$f" base_head)
   [[ "$published" == "1" ]] && return 0
-  grep -Fq "ingest-job:$job_id" "$DATA_FILE" || return 1
-  [[ "$push_mode" == "0" ]] && return 0
-  [[ "$push_mode" == "1" ]] || return 2
+  [[ "$push_mode" =~ ^[01]$ ]] || return 2
 
   data_rel="${DATA_FILE#$REPO/}"
-  if git -C "$REPO" show "origin/main:$data_rel" 2>/dev/null \
+  if [[ "$push_mode" == "1" ]] \
+    && git -C "$REPO" show "origin/main:$data_rel" 2>/dev/null \
     | grep -Fq "ingest-job:$job_id"; then
     return 0
   fi
 
   # Crash possible entre commit et push : si HEAD contient le job et que le
-  # fichier est propre, reprendre uniquement le push du commit déjà créé.
+  # fichier est propre, reprendre uniquement le push explicite de HEAD vers main.
   if git -C "$REPO" diff --quiet -- "$DATA_FILE" \
     && git -C "$REPO" diff --cached --quiet -- "$DATA_FILE" \
     && git -C "$REPO" show "HEAD:$data_rel" 2>/dev/null \
-      | grep -Fq "ingest-job:$job_id" \
-    && git -C "$REPO" push -q origin main; then
-    return 0
+      | grep -Fq "ingest-job:$job_id"; then
+    [[ "$push_mode" == "0" ]] && return 0
+    if core_require_main_branch "$REPO" \
+      && git -C "$REPO" push -q origin HEAD:main; then
+      return 0
+    fi
+    return 2
   fi
-  return 2
+
+  # Crash entre wire/build et commit : le marqueur durable prouve que ce job a
+  # commencé à modifier labs360.ts. Tant que HEAD n'a pas bougé, on restaure le
+  # fichier suivi puis on rejoue le job; aucun dépôt sale ne bloque la reprise.
+  if [[ "$phase" == "wiring" ]] \
+    || { [[ -z "$phase" ]] \
+      && grep -Fq "ingest-job:$job_id" "$DATA_FILE" 2>/dev/null; }; then
+    current_head="$(git -C "$REPO" rev-parse HEAD 2>/dev/null)" || return 2
+    if [[ -n "$base_head" && "$current_head" != "$base_head" ]]; then
+      return 2
+    fi
+    git -C "$REPO" reset -q -- "$data_rel" 2>/dev/null || return 2
+    git -C "$REPO" checkout -- "$data_rel" 2>/dev/null || return 2
+    mark_job_claimed "$f" || return 2
+    return 1
+  fi
+  return 1
 }
 
 finalize_published_file() {
@@ -349,6 +391,10 @@ process(){
     log "ÉCHEC reprise : job $job_id reconnu, mais push non prouvé; aucune republication"
     return 1
   fi
+  if [[ "$DRY" == "0" ]] && ! core_require_main_branch "$REPO"; then
+    log "ÉCHEC : publication permise uniquement depuis la branche main"
+    return 1
+  fi
   ptype=$(detect_type "$f")
   [[ "$ptype" == "unknown" ]] && {
     quarantine "$f" "Type non reconnu (extension inattendue)."
@@ -357,7 +403,7 @@ process(){
   log "Traitement : $base (type=$ptype)"
 
   # GPS + date via exiftool
-  read -r lat lon dt < <(core_extract_meta "$f")
+  IFS='|' read -r lat lon dt < <(core_extract_meta "$f")
 
   # Repli : nom de fichier (coordonnées ou lieu à géocoder)
   if [[ -z "$lat" || -z "$lon" ]]; then
@@ -438,7 +484,7 @@ process(){
   }
 
   if [[ "$DRY" == "1" ]]; then
-    log "DRY-RUN : $base → type=$ptype lieu=«$gname» ($gcity) fichier=$filename lat=$lat lon=$lon poster=$([[ -n "$poster_local" ]] && echo oui || echo non)"
+    log "DRY-RUN : $base → type=$ptype lieu=«${gname}» ($gcity) fichier=$filename lat=$lat lon=$lon poster=$([[ -n "$poster_local" ]] && echo oui || echo non)"
     rm -rf "$work"; return
   fi
 
@@ -474,6 +520,11 @@ process(){
     log "ÉCHEC sauvegarde de labs360.ts : $base laissé dans inbox/"
     return 1
   }
+  if ! mark_job_wiring "$f"; then
+    rm -f "$snapshot"
+    log "ÉCHEC état de reprise : $base laissé dans inbox-processing/"
+    return 1
+  fi
   media_url="$MEDIA_BASE_URL/$(basename "$destdir")/$filename"
   if ! GEO_JSON="$geo" MEDIA_URL="$media_url" PTYPE="$ptype" POSTER_URL="$poster_url" \
        REPLACE="" WIRE_NOTE="Auto-publié par iso-ingest; ingest-job:$job_id" \
@@ -537,6 +588,11 @@ main() {
     trap release_lock EXIT
     trap 'release_lock; exit 130' HUP INT TERM
 
+    # Une branche différente pourrait pousser le mauvais contenu sur main.
+    if ! core_require_main_branch "$REPO"; then
+      log "ÉCHEC : branche main requise; aucun fichier traité."
+      return 1
+    fi
     # Un pull raté rendrait le push non fiable : ne publier aucun média dans ce cas.
     if ! git -C "$REPO" pull --ff-only origin main >/dev/null 2>&1; then
       log "ÉCHEC git pull --ff-only : aucun fichier traité."

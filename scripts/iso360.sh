@@ -149,7 +149,7 @@ fi
 if [[ "$FILE_MODE" == "1" ]]; then FIRST="$SESSION"; else
   FIRST=$(find "$SESSION" -maxdepth 1 -iname 'PANO_*.JPG' ! -name '._*' | sort | head -1)
 fi
-read -r M_LAT M_LON M_DT < <(core_extract_meta "$FIRST")
+IFS='|' read -r M_LAT M_LON M_DT < <(core_extract_meta "$FIRST")
 # Overrides manuels --lat/--lon (utile si l'export DJI a perdu le GPS EXIF).
 [[ -n "$LAT" ]] && M_LAT="$LAT"
 [[ -n "$LON" ]] && M_LON="$LON"
