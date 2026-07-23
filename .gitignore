@@ -24,3 +24,6 @@ pnpm-debug.log*
 .idea/
 .vercel
 .env*
+
+# Ledgers locaux des workflows Superpowers (jamais livrés dans le produit)
+.superpowers/

@@ -26,7 +26,7 @@
 #   --lat <deg> --lon <deg> Force les coordonnées (si l'export a perdu le GPS EXIF)
 #   --replace <id>          Met à jour le média d'un lieu EXISTANT au lieu d'en créer un
 #   --no-push               Fait tout sauf le git push (commit local seulement)
-#   --dry-run               Prépare + géolocalise + affiche, mais ne touche RIEN (ni média, ni repo)
+#   --dry-run               Prépare + géolocalise sans publier; écrit seulement un aperçu sur le Bureau
 #
 # Exemples :
 #   iso360 "/Volumes/SD_Card/DCIM/PANORAMA/001_0190"
@@ -153,7 +153,10 @@ read -r M_LAT M_LON M_DT < <(core_extract_meta "$FIRST")
 # Overrides manuels --lat/--lon (utile si l'export DJI a perdu le GPS EXIF).
 [[ -n "$LAT" ]] && M_LAT="$LAT"
 [[ -n "$LON" ]] && M_LON="$LON"
-GEO_JSON=$(LAT="$M_LAT" LON="$M_LON" DT="$M_DT" NAME_OVR="$NAME" CITY_OVR="$CITY" ID_OVR="$ID" core_geocode)
+if ! GEO_JSON=$(LAT="$M_LAT" LON="$M_LON" DT="$M_DT" NAME_OVR="$NAME" \
+    CITY_OVR="$CITY" ID_OVR="$ID" core_geocode); then
+  die "Géocodage Nominatim échoué — aucun lieu inventé ni publié."
+fi
 
 GEO_NAME=$(echo "$GEO_JSON" | python3 -c 'import json,sys;print(json.load(sys.stdin)["name"])')
 GEO_CITY=$(echo "$GEO_JSON" | python3 -c 'import json,sys;print(json.load(sys.stdin)["city"])')
@@ -161,7 +164,11 @@ GEO_ID=$(echo "$GEO_JSON" | python3 -c 'import json,sys;print(json.load(sys.stdi
 GEO_YM=$(echo "$GEO_JSON" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("ym") or "")')
 GEO_DISPLAY=$(echo "$GEO_JSON" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("display",""))')
 [[ -n "$GEO_YM" ]] || GEO_YM=$(date +%Y-%m)
-FILE="${GEO_ID}-${GEO_YM}.jpg"
+if [[ -z "$REPLACE" ]]; then
+  GEO_ID="$(core_unique_place_id "$DATA_FILE" "$GEO_ID")"
+  GEO_JSON="$(core_set_geo_id "$GEO_JSON" "$GEO_ID")"
+fi
+FILE="$(core_unique_filename "$MEDIA_DIR" "${GEO_ID}-${GEO_YM}.jpg")"
 
 ok "Lieu : $GEO_NAME  ($GEO_CITY)"
 [[ -n "$GEO_DISPLAY" ]] && info "Adresse : $GEO_DISPLAY"
@@ -176,18 +183,35 @@ fi
 
 # ─── 4-5. Publication sur le tunnel + vérification (via le cœur) ─────────────
 cd "$REPO"
+core_file_is_clean "$REPO" "$DATA_FILE" \
+  || die "labs360.ts contient déjà des changements — publication annulée pour ne rien écraser."
 core_publish_verify "$WORK/pano.jpg" "$MEDIA_DIR" "$MEDIA_BASE_URL" "$FILE" \
   || die "Publication/vérification échouée (tunnel/Caddy arrêté ? cf handoff §3)"
 
 # ─── 6. Câblage dans labs360.ts (via le cœur : insertion ou remplacement) ────
+DATA_SNAPSHOT="$(mktemp "${TMPDIR:-/tmp}/iso360-data.XXXXXX")"
+cp "$DATA_FILE" "$DATA_SNAPSHOT" || die "Impossible de sauvegarder labs360.ts"
 GEO_JSON="$GEO_JSON" MEDIA_URL="$MEDIA_BASE_URL/$FILE" PTYPE='360' POSTER_URL='' \
   REPLACE="$REPLACE" WIRE_NOTE='Pano drone auto-publié par iso360' DATA="$DATA_FILE" \
-  core_wire || die "Câblage labs360.ts échoué"
+  core_wire || {
+    cp "$DATA_SNAPSHOT" "$DATA_FILE"
+    rm -f "$DATA_SNAPSHOT"
+    die "Câblage labs360.ts échoué"
+  }
 ok "labs360.ts câblé"
 
 # ─── 7. Garde-fou : build avant de pousser (via le cœur) ─────────────────────
-core_build_guard "$DATA_FILE" || die "Build échoué → rien poussé. Voir /tmp/iso360-build.log"
+core_build_guard "$DATA_FILE" "$DATA_SNAPSHOT" || {
+  rm -f "$DATA_SNAPSHOT"
+  die "Build échoué → rien poussé. Voir /tmp/iso360-build.log"
+}
 
 # ─── 8. Commit + push (via le cœur) ──────────────────────────────────────────
 verb=$([[ -n "$REPLACE" ]] && echo "update" || echo "add")
-core_commit_push "$DATA_FILE" "$verb" "$GEO_NAME" "$PUSH" "$LIVE_PAGE" "$FILE"
+if ! core_commit_push "$DATA_FILE" "$verb" "$GEO_NAME" "$PUSH" "$LIVE_PAGE" "$FILE"; then
+  git -C "$REPO" reset -q -- "$DATA_FILE" 2>/dev/null || true
+  cp "$DATA_SNAPSHOT" "$DATA_FILE"
+  rm -f "$DATA_SNAPSHOT"
+  die "Commit/push échoué → labs360.ts restauré, original conservé."
+fi
+rm -f "$DATA_SNAPSHOT"

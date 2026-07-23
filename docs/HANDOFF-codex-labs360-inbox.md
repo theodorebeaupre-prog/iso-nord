@@ -1,4 +1,4 @@
-# Handoff (Codex) — Boîte de dépôt auto « Québec en 360 » — À FINIR
+# Handoff (Codex) — Boîte de dépôt auto « Québec en 360 » — À ACTIVER SUR LE NAS
 
 > Écrit le 2026-07-23. Reprend le travail commencé dans la session Claude Code.
 > **Branche : `feat/labs360-inbox`** (poussée sur GitHub). Objectif : déposer un
@@ -46,6 +46,20 @@ Le NAS opère sur la branche **`main`** → **il faut merger `feat/labs360-inbox
      quarantaine visible + lockfile + log. `--dry-run` ne touche à RIEN.
      `MEDIA_ROOT` surchargeable via `ISO_NORD_MEDIA_ROOT` (pour tester).
    - **Vérifié** en dry-run sur 4 fixtures (photo sans GPS→nom, vidéo→GPS MP4, type inconnu→quarantaine, 360 sans GPS→quarantaine).
+5. **Task 5 — LaunchAgent + documentation** (commits `106a68a`, `241d922`) :
+   - plist NAS Intel livré avec le bon repo, `WatchPaths`, PATH et journaux;
+   - création de `inbox/` documentée avant `launchctl load`.
+6. **Revue whole-branch + hardening final** :
+   - échecs `git add` / `commit` / `push` propagés; original archivé seulement
+     après succès;
+   - Nominatim a des retries + timeouts et une panne mène en quarantaine, jamais
+     à « Lieu sans nom » ni à des coordonnées inventées;
+   - IDs, médias, posters, quarantaines et archives suffixés en cas de collision;
+     la copie média refuse atomiquement tout écrasement sous cache immutable;
+   - garde-fou build vérifie réellement **exactement 10 pages**;
+   - verrou PID récupérable après crash, compatible Bash 3.2; curls bornés;
+   - `iso-ingest --dry-run` ne crée ni dossier, lock, log, média ni changement repo;
+   - tests reproductibles : `tests/labs360-pipeline.sh`.
 
 ### Environnement déjà provisionné
 - **MacBook** : exiftool + ffmpeg installés (pour tests). `gh` connecté à `theodorebeaupre-prog` (proprio du repo).
@@ -69,22 +83,12 @@ ssh -i ~/.ssh/id_ed25519_macpro theodorebeaupre@100.99.244.24 \
 ```
 Attendu : les deux binaires présents dans `/usr/local/bin`.
 
-### B. Task 5 — LaunchAgent + doc (PAS ENCORE FAIT)
-1. Créer **`launchd/com.iso-nord.inbox.plist`** (voir le plan Task 5, **avec ces
-   corrections pour le NAS Intel**) :
-   - `ProgramArguments` → `/Volumes/SSD 1/iso-nord/scripts/iso-ingest.sh` (le clone NAS).
-   - `WatchPaths` → `/Volumes/SSD 1/iso-nord-media/inbox`.
-   - `PATH` (EnvironmentVariables) → **`/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin`**
-     (Intel : `/usr/local/bin`, PAS `/opt/homebrew/bin`). Doit contenir git, node, npm, exiftool, ffmpeg.
-   - `StandardOutPath`/`StandardErrorPath` → `/Volumes/SSD 1/iso-nord-media/inbox-launchd.{out,err}.log`.
-2. Ajouter la section « boîte de dépôt » à `docs/HANDOFF-codex.md` (§5bis dans le plan).
-3. Commit.
-
-### C. Fusionner et déployer le code sur `main`
-- Finir la revue (voir Task 6 du plan : revue whole-branch) puis **merger `feat/labs360-inbox` → `main`** et `git push origin main`.
+### B. Fusionner et déployer le code sur `main`
+- La revue whole-branch est faite. **Merger `feat/labs360-inbox` → `main`** et
+  `git push origin main`.
 - ⚠️ **Rien n'est encore poussé sur `main`** : le site en prod n'a PAS le type `photo` tant que ce n'est pas mergé.
 
-### D. Activer + tester sur le NAS (bout-en-bout réel)
+### C. Activer + tester sur le NAS (bout-en-bout réel)
 ```bash
 ssh -i ~/.ssh/id_ed25519_macpro theodorebeaupre@100.99.244.24 'bash -lc "
   cd \"/Volumes/SSD 1/iso-nord\" && git pull --ff-only origin main   # récupère le code fini
@@ -100,22 +104,22 @@ ssh -i ~/.ssh/id_ed25519_macpro theodorebeaupre@100.99.244.24 'bash -lc "
   pin «<lieu>»`, original déplacé dans `inbox-publies/`, pin en ligne après propagation Vercel.
 - Tester aussi un fichier sans GPS mal nommé → doit atterrir dans `inbox-corriger/` + `.txt`.
 
-### E. Vérifs restantes non faites dans la 1re session
+### D. Vérification réelle restante
 - **Publish/wire/build/push réels de `iso-ingest`** (nécessitaient le SSD) : jamais exécutés
-  end-to-end — à valider en D avec `--no-push` d'abord (`./scripts/iso-ingest.sh --no-push`)
+  end-to-end — à valider en C avec `--no-push` d'abord (`./scripts/iso-ingest.sh --no-push`)
   puis en réel.
-- **Revue de code whole-branch** (Task 6 du plan) : non faite.
 
 ---
 
 ## Pièges / points d'attention
 - **Deux clones du même repo** (MacBook + NAS). En régime normal le **NAS est le seul
   à auto-pousser**. Après ça, faire `git pull` sur le MacBook avant tout dev. `iso-ingest`
-  fait un `git pull --ff-only origin main` en tête de lot (best-effort) pour rester à jour.
+  exige un `git pull --ff-only origin main` réussi en tête de lot avant de publier.
 - **Cache média 1 an** : jamais réutiliser un nom de fichier média publié (noms versionnés
-  `<id>-<AAAA-MM>.<ext>` déjà gérés par les scripts).
+  `<id>-<AAAA-MM>[-N].<ext>`); la publication refuse tout chemin déjà présent.
 - **Dossiers frères** de `inbox/` (`inbox-corriger/`, `inbox-publies/`, `inbox.log`,
   `inbox.lock`) : hors du dossier surveillé, pour ne pas boucler `WatchPaths`. Créés
   automatiquement par `iso-ingest.sh` au 1er run.
 - **exiftool lit le GPS des MP4/MOV DJI** (pas seulement JPEG) → clips supportés.
-- Build attendu : **10 pages**. Garde-fou : build cassé → `labs360.ts` restauré, rien poussé.
+- Build attendu : **exactement 10 pages**. Compte différent ou build cassé →
+  `labs360.ts` restauré, rien poussé.

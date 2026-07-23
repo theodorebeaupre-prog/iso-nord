@@ -226,6 +226,9 @@ aucun popup — tout passe par les fichiers et le log.
 image → photo (lightbox). **GPS** via exiftool ; si absent, le **nom du fichier**
 sert de repli (`chute-montmorency.jpg` géocodé, ou `46.89,-71.15.jpg` en coordonnées).
 Sans lieu fiable → `inbox-corriger/` + un `.txt` explicatif (renommer + redéposer).
+Une panne Nominatim est retentée avec timeout puis mène aussi en quarantaine : aucun
+nom ou pin n'est inventé. Les collisions reçoivent un suffixe (`-2`, `-3`…) et une
+publication média existante n'est jamais écrasée (cache immutable).
 
 **Dépendances :** `brew install exiftool ffmpeg`. **Ne stitche PAS** les 35 segments
 DJI bruts (ça reste la commande manuelle `iso360`) — l'inbox n'accepte que des
@@ -243,6 +246,9 @@ launchctl load ~/Library/LaunchAgents/com.iso-nord.inbox.plist
 `launchctl list | grep iso-nord`. GPS manquant → voir `inbox-corriger/`. URL 200 KO →
 tunnel/Caddy (cf §3). Le plist du Mac Pro Intel utilise `/usr/local/bin` pour
 Homebrew. Son script pointe vers le clone NAS `/Volumes/SSD 1/iso-nord`.
+Le verrou contient le PID et récupère automatiquement un lock laissé par un crash.
+`--dry-run` reste en lecture seule (aucun dossier, lock, log, média ou changement git).
+Avant l'archive, le pipeline exige build = 10 pages, commit et, sauf `--no-push`, push réussi.
 
 ---
 
