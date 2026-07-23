@@ -25,6 +25,7 @@ MEDIA_ROOT="${ISO_NORD_MEDIA_ROOT:-/Volumes/SSD 1/iso-nord-media}"
 INBOX="$MEDIA_ROOT/inbox"
 CORRIGER="$MEDIA_ROOT/inbox-corriger"
 PUBLIES="$MEDIA_ROOT/inbox-publies"
+PROCESSING="$MEDIA_ROOT/inbox-processing"
 LOGFILE="$MEDIA_ROOT/inbox.log"
 LOCK="$MEDIA_ROOT/inbox.lock"
 
@@ -58,23 +59,94 @@ LOCK_TOKEN=""
 
 clean_stale_lock_copy() {
   local stale="$1"
-  rm -f "$stale/owner" 2>/dev/null || true
+  rm -f "$stale/owner" "$stale/pid" "$stale/token" "$stale/boot_id" \
+    "$stale/process_start" "$stale/ready" 2>/dev/null || true
   rmdir "$stale" 2>/dev/null || true
 }
 
+lock_boot_id() {
+  local value=""
+  if [[ -n "${ISO_NORD_BOOT_ID:-}" ]]; then
+    printf '%s\n' "$ISO_NORD_BOOT_ID"
+    return
+  fi
+  if [[ -r /proc/sys/kernel/random/boot_id ]]; then
+    tr -d '\n' < /proc/sys/kernel/random/boot_id
+    printf '\n'
+    return
+  fi
+  value=$(sysctl -n kern.boottime 2>/dev/null \
+    | sed -E 's/.*sec = ([0-9]+).*/\1/' || true)
+  [[ "$value" =~ ^[0-9]+$ ]] || value="boot-inconnu"
+  printf '%s\n' "$value"
+}
+
+lock_process_start() {
+  ps -p "$1" -o lstart= 2>/dev/null \
+    | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//'
+}
+
+lock_age_seconds() {
+  local modified="" now=""
+  modified=$(stat -f%m "$LOCK" 2>/dev/null \
+    || stat -c%Y "$LOCK" 2>/dev/null \
+    || echo 0)
+  now=$(date +%s)
+  if [[ "$modified" =~ ^[0-9]+$ && "$modified" -gt 0 ]]; then
+    printf '%s\n' "$((now - modified))"
+  else
+    printf '0\n'
+  fi
+}
+
+write_lock_owner() {
+  local process_start="" boot_id=""
+  process_start="$(lock_process_start "$$")"
+  boot_id="$(lock_boot_id)"
+  [[ -n "$process_start" && -n "$boot_id" ]] || return 1
+  printf '%s\n' "$$" > "$LOCK/pid" || return 1
+  printf '%s\n' "$LOCK_TOKEN" > "$LOCK/token" || return 1
+  printf '%s\n' "$boot_id" > "$LOCK/boot_id" || return 1
+  printf '%s\n' "$process_start" > "$LOCK/process_start" || return 1
+  # `ready` est publié en dernier : avant lui, le lock est en initialisation.
+  : > "$LOCK/ready" || return 1
+}
+
+lock_owner_is_alive() {
+  local owner_pid="" owner_boot="" owner_start="" current_start=""
+  [[ -f "$LOCK/ready" && -r "$LOCK/pid" && -r "$LOCK/boot_id" \
+    && -r "$LOCK/process_start" ]] || return 1
+  owner_pid=$(tr -d '\n' < "$LOCK/pid")
+  owner_boot=$(tr -d '\n' < "$LOCK/boot_id")
+  owner_start=$(cat "$LOCK/process_start")
+  [[ "$owner_pid" =~ ^[0-9]+$ ]] || return 1
+  [[ "$owner_boot" == "$(lock_boot_id)" ]] || return 1
+  kill -0 "$owner_pid" 2>/dev/null || return 1
+  current_start="$(lock_process_start "$owner_pid")"
+  [[ -n "$current_start" && "$current_start" == "$owner_start" ]]
+}
+
 acquire_lock() {
-  local owner_pid="" owner_token="" stale=""
+  local stale="" age="" grace="${ISO_NORD_LOCK_INIT_GRACE:-30}"
   LOCK_TOKEN="$$-$(date +%s)-$RANDOM"
   if mkdir "$LOCK" 2>/dev/null; then
-    printf '%s %s\n' "$$" "$LOCK_TOKEN" > "$LOCK/owner"
+    if ! write_lock_owner; then
+      clean_stale_lock_copy "$LOCK"
+      LOCK_TOKEN=""
+      return 1
+    fi
     return 0
   fi
 
-  if [[ -r "$LOCK/owner" ]]; then
-    read -r owner_pid owner_token < "$LOCK/owner" || true
-  fi
-  if [[ "$owner_pid" =~ ^[0-9]+$ ]] && kill -0 "$owner_pid" 2>/dev/null; then
+  if lock_owner_is_alive; then
     return 1
+  fi
+  if [[ ! -f "$LOCK/ready" ]]; then
+    age="$(lock_age_seconds)"
+    [[ "$age" =~ ^[0-9]+$ ]] || age=0
+    [[ "$grace" =~ ^[0-9]+$ ]] || grace=30
+    # Fenêtre mkdir → owner : un second processus ne peut pas voler ce lock.
+    [[ "$age" -lt "$grace" ]] && return 1
   fi
 
   # Déplacer atomiquement le verrou mort avant de tenter de le recréer. Si une
@@ -85,18 +157,137 @@ acquire_lock() {
     clean_stale_lock_copy "$stale"
     return 1
   fi
-  printf '%s %s\n' "$$" "$LOCK_TOKEN" > "$LOCK/owner"
+  if ! write_lock_owner; then
+    clean_stale_lock_copy "$LOCK"
+    clean_stale_lock_copy "$stale"
+    LOCK_TOKEN=""
+    return 1
+  fi
   clean_stale_lock_copy "$stale"
   return 0
 }
 
 release_lock() {
   local owner_pid="" owner_token=""
-  [[ -n "$LOCK_TOKEN" && -r "$LOCK/owner" ]] || return 0
-  read -r owner_pid owner_token < "$LOCK/owner" || return 0
+  [[ -n "$LOCK_TOKEN" && -r "$LOCK/pid" && -r "$LOCK/token" ]] || return 0
+  owner_pid=$(tr -d '\n' < "$LOCK/pid")
+  owner_token=$(tr -d '\n' < "$LOCK/token")
   [[ "$owner_pid" == "$$" && "$owner_token" == "$LOCK_TOKEN" ]] || return 0
-  rm -f "$LOCK/owner" 2>/dev/null || return 0
+  rm -f "$LOCK/pid" "$LOCK/token" "$LOCK/boot_id" \
+    "$LOCK/process_start" "$LOCK/ready" 2>/dev/null || return 0
   rmdir "$LOCK" 2>/dev/null || true
+}
+
+# ─── État durable d'un fichier ────────────────────────────────────────────────
+job_marker_path() {
+  printf '%s.iso360-job\n' "$1"
+}
+
+ensure_job_marker() {
+  local f="$1" marker="" tmp="" job_id="" push_mode=""
+  if [[ "$DRY" == "1" ]]; then
+    printf 'dry-run\n'
+    return 0
+  fi
+  marker="$(job_marker_path "$f")"
+  if [[ -s "$marker" ]]; then
+    job_id=$(sed -n '1p' "$marker")
+  else
+    job_id="$(date +%s)-$$-$RANDOM"
+    tmp="$marker.tmp.$$.$RANDOM"
+    printf '%s\npush=%s\npublished=0\n' "$job_id" "$PUSH" > "$tmp" || return 1
+    mv "$tmp" "$marker" || {
+      rm -f "$tmp"
+      return 1
+    }
+  fi
+  [[ "$job_id" =~ ^[a-zA-Z0-9._-]+$ ]] || return 1
+  printf '%s\n' "$job_id"
+}
+
+job_marker_value() {
+  local f="$1" key="$2" marker=""
+  marker="$(job_marker_path "$f")"
+  sed -n "s/^${key}=//p" "$marker" 2>/dev/null | head -1
+}
+
+mark_job_published() {
+  local f="$1" marker="" tmp="" job_id="" push_mode=""
+  marker="$(job_marker_path "$f")"
+  job_id=$(sed -n '1p' "$marker" 2>/dev/null)
+  push_mode=$(job_marker_value "$f" push)
+  [[ "$job_id" =~ ^[a-zA-Z0-9._-]+$ && "$push_mode" =~ ^[01]$ ]] || return 1
+  tmp="$marker.tmp.$$.$RANDOM"
+  printf '%s\npush=%s\npublished=1\n' "$job_id" "$push_mode" > "$tmp" || return 1
+  mv "$tmp" "$marker" || {
+    rm -f "$tmp"
+    return 1
+  }
+}
+
+# Retourne 0 si on peut archiver sans republier, 1 si le job est neuf, 2 si un
+# ancien job est reconnu mais que son push ne peut pas être prouvé/récupéré.
+job_ready_for_archive() {
+  local f="$1" job_id="$2" push_mode="" published="" data_rel=""
+  [[ "$job_id" != "dry-run" ]] || return 1
+  push_mode=$(job_marker_value "$f" push)
+  published=$(job_marker_value "$f" published)
+  [[ "$published" == "1" ]] && return 0
+  grep -Fq "ingest-job:$job_id" "$DATA_FILE" || return 1
+  [[ "$push_mode" == "0" ]] && return 0
+  [[ "$push_mode" == "1" ]] || return 2
+
+  data_rel="${DATA_FILE#$REPO/}"
+  if git -C "$REPO" show "origin/main:$data_rel" 2>/dev/null \
+    | grep -Fq "ingest-job:$job_id"; then
+    return 0
+  fi
+
+  # Crash possible entre commit et push : si HEAD contient le job et que le
+  # fichier est propre, reprendre uniquement le push du commit déjà créé.
+  if git -C "$REPO" diff --quiet -- "$DATA_FILE" \
+    && git -C "$REPO" diff --cached --quiet -- "$DATA_FILE" \
+    && git -C "$REPO" show "HEAD:$data_rel" 2>/dev/null \
+      | grep -Fq "ingest-job:$job_id" \
+    && git -C "$REPO" push -q origin main; then
+    return 0
+  fi
+  return 2
+}
+
+finalize_published_file() {
+  local f="$1" base="" archive_target="" marker=""
+  base=$(basename "$f")
+  marker="$(job_marker_path "$f")"
+  archive_target="$(core_unique_path "$PUBLIES/$base")"
+  if ! mv "$f" "$archive_target"; then
+    log "PUBLIÉ mais archivage impossible : $base reste dans inbox-processing/"
+    return 1
+  fi
+  rm -f "$marker" 2>/dev/null \
+    || log "⚠ marqueur de job orphelin à retirer : $marker"
+  log "ARCHIVÉ : $base → $(basename "$archive_target")"
+  return 0
+}
+
+claim_inbox_file() {
+  local source="$1" target="" source_marker="" target_marker=""
+  target="$(core_unique_path "$PROCESSING/$(basename "$source")")"
+  source_marker="$(job_marker_path "$source")"
+  target_marker="$(job_marker_path "$target")"
+  mv "$source" "$target" || return 1
+  if [[ -f "$source_marker" ]]; then
+    if ! mv "$source_marker" "$target_marker"; then
+      mv "$target" "$source" 2>/dev/null || true
+      return 1
+    fi
+  fi
+  if ! ensure_job_marker "$target" >/dev/null; then
+    mv "$target" "$source" 2>/dev/null || true
+    rm -f "$target_marker" 2>/dev/null || true
+    return 1
+  fi
+  printf '%s\n' "$target"
 }
 
 # ─── Quarantaine ─────────────────────────────────────────────────────────────
@@ -112,6 +303,7 @@ quarantine(){  # <fichier> <raison>
     log "ÉCHEC quarantaine : impossible de déplacer $base"
     return 1
   fi
+  rm -f "$(job_marker_path "$f")" 2>/dev/null || true
   note_target="$(core_unique_path "$CORRIGER/${base%.*}.txt")"
   printf '%s\n\nRenomme ce fichier avec le lieu puis redépose-le dans inbox/.\nExemples : chute-montmorency.jpg  (nom, géocodé)  ou  46.89,-71.15.jpg  (coordonnées).\n' \
     "$reason" > "$note_target"
@@ -140,8 +332,23 @@ process(){
   local f="$1" base ptype lat="" lon="" dt="" stem coords="" name_ovr=""
   local geo="" geo_error="" gname="" gid="" gym="" gcity=""
   local work="" destdir="" filename="" ext="" poster_url="" poster_local=""
-  local outfile="" poster_file="" media_url="" snapshot="" archive_target=""
+  local outfile="" poster_file="" media_url="" snapshot="" job_id="" job_state=""
   base=$(basename "$f")
+  if ! job_id="$(ensure_job_marker "$f")"; then
+    log "ÉCHEC : impossible de créer/lire le marqueur durable pour $base"
+    return 1
+  fi
+  job_ready_for_archive "$f" "$job_id"
+  job_state=$?
+  if [[ "$job_state" == "0" ]]; then
+    mark_job_published "$f" 2>/dev/null || true
+    log "REPRISE : job $job_id déjà publié; archivage seulement pour $base"
+    finalize_published_file "$f"
+    return $?
+  elif [[ "$job_state" == "2" ]]; then
+    log "ÉCHEC reprise : job $job_id reconnu, mais push non prouvé; aucune republication"
+    return 1
+  fi
   ptype=$(detect_type "$f")
   [[ "$ptype" == "unknown" ]] && {
     quarantine "$f" "Type non reconnu (extension inattendue)."
@@ -269,7 +476,8 @@ process(){
   }
   media_url="$MEDIA_BASE_URL/$(basename "$destdir")/$filename"
   if ! GEO_JSON="$geo" MEDIA_URL="$media_url" PTYPE="$ptype" POSTER_URL="$poster_url" \
-       REPLACE="" WIRE_NOTE="Auto-publié par iso-ingest" DATA="$DATA_FILE" core_wire; then
+       REPLACE="" WIRE_NOTE="Auto-publié par iso-ingest; ingest-job:$job_id" \
+       DATA="$DATA_FILE" core_wire; then
     cp "$snapshot" "$DATA_FILE"
     rm -f "$snapshot"
     log "ÉCHEC câblage : $base (marqueur iso360:insert absent ?)"
@@ -291,21 +499,23 @@ process(){
     log "ÉCHEC commit/push : labs360.ts restauré, $base laissé dans inbox/"
     return 1
   fi
-  rm -f "$snapshot"
-
-  # Archiver seulement après add + commit (+ push si demandé) réussis.
-  archive_target="$(core_unique_path "$PUBLIES/$base")"
-  if ! mv "$f" "$archive_target"; then
-    log "PUBLIÉ mais archivage impossible : $base reste dans inbox/"
+  if ! mark_job_published "$f"; then
+    rm -f "$snapshot"
+    log "PUBLIÉ mais état du job impossible à confirmer : $base reste dans inbox-processing/"
     return 1
   fi
+  rm -f "$snapshot"
+
+  # Archiver seulement après add + commit (+ push si demandé) réussis. Si le
+  # déplacement rate, le job ID dans labs360.ts rend le prochain essai idempotent.
+  finalize_published_file "$f" || return 1
   log "PUBLIÉ : $base → pin «$gname» ($media_url)"
   return 0
 }
 
 # ─── Boucle : chaque fichier de premier niveau de inbox/ ─────────────────────
 main() {
-  local found=0 failed=0 f="" b="" s1="" s2=""
+  local found=0 failed=0 f="" b="" s1="" s2="" claimed=""
   [[ -d "$MEDIA_ROOT" ]] || {
     printf 'SSD non monté : %s\n' "$MEDIA_ROOT" >&2
     return 0
@@ -318,7 +528,7 @@ main() {
       return 0
     }
   else
-    mkdir -p "$INBOX" "$CORRIGER" "$PUBLIES" \
+    mkdir -p "$INBOX" "$CORRIGER" "$PUBLIES" "$PROCESSING" \
       "$MEDIA_ROOT/panoramas" "$MEDIA_ROOT/videos" "$MEDIA_ROOT/photos" || return 1
     if ! acquire_lock; then
       log "Déjà en cours (verrou actif) — sortie."
@@ -335,10 +545,26 @@ main() {
   fi
 
   shopt -s nullglob
+  if [[ "$DRY" == "0" ]]; then
+    # Reprendre d'abord les fichiers déjà réclamés. Un job présent dans
+    # labs360.ts saute directement à l'archive, sans republier.
+    for f in "$PROCESSING"/*; do
+      [[ -f "$f" ]] || continue
+      [[ "$f" == *.iso360-job || "$f" == *.iso360-job.tmp.* ]] && continue
+      found=1
+      process "$f" || failed=1
+    done
+    # Un marqueur sans fichier ne sert plus à rien (mv archive déjà réussi).
+    for f in "$PROCESSING"/*.iso360-job; do
+      [[ -f "$f" ]] || continue
+      [[ -f "${f%.iso360-job}" ]] || rm -f "$f"
+    done
+  fi
+
   for f in "$INBOX"/*; do
     [[ -f "$f" ]] || continue
     b=$(basename "$f")
-    [[ "$b" == .* ]] && continue
+    [[ "$b" == .* || "$b" == *.iso360-job ]] && continue
     # Débounce : taille stable = copie réseau terminée
     s1=$(stat -f%z "$f" 2>/dev/null || echo 0)
     sleep 2
@@ -348,7 +574,16 @@ main() {
       continue
     }
     found=1
-    process "$f" || failed=1
+    if [[ "$DRY" == "1" ]]; then
+      process "$f" || failed=1
+    else
+      claimed="$(claim_inbox_file "$f")" || {
+        log "ÉCHEC : impossible de réclamer $b vers inbox-processing/"
+        failed=1
+        continue
+      }
+      process "$claimed" || failed=1
+    fi
   done
   [[ "$found" == "0" ]] && log "Aucun fichier à traiter."
   return "$failed"

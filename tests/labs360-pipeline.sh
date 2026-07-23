@@ -283,10 +283,10 @@ test_ingest_can_be_sourced_without_running() {
 test_stale_lock_is_recovered() {
   local case_dir="$TMP_ROOT/stale-lock"
   mkdir -p "$case_dir/inbox.lock"
-  printf '999999 stale-token\n' > "$case_dir/inbox.lock/owner"
   if (
     export ISO_NORD_INGEST_SOURCE_ONLY=1
     export ISO_NORD_MEDIA_ROOT="$case_dir"
+    export ISO_NORD_LOCK_INIT_GRACE=0
     . "$ROOT/scripts/iso-ingest.sh"
     acquire_lock
     release_lock
@@ -299,17 +299,68 @@ test_stale_lock_is_recovered() {
 
 test_active_lock_is_kept() {
   local case_dir="$TMP_ROOT/active-lock"
-  mkdir -p "$case_dir/inbox.lock"
-  printf '%s active-token\n' "$$" > "$case_dir/inbox.lock/owner"
   if (
     export ISO_NORD_INGEST_SOURCE_ONLY=1
     export ISO_NORD_MEDIA_ROOT="$case_dir"
     . "$ROOT/scripts/iso-ingest.sh"
+    mkdir -p "$LOCK"
+    LOCK_TOKEN="active-token"
+    write_lock_owner
     acquire_lock
   ) >/dev/null 2>&1; then
     fail "un verrou actif n’est pas volé"
   else
     pass "un verrou actif n’est pas volé"
+  fi
+}
+
+test_pid_reuse_and_reboot_do_not_keep_stale_lock() {
+  local mode case_dir ok=1
+  for mode in reboot pid-reuse; do
+    case_dir="$TMP_ROOT/lock-$mode"
+    mkdir -p "$case_dir/inbox.lock"
+    (
+      export ISO_NORD_INGEST_SOURCE_ONLY=1
+      export ISO_NORD_MEDIA_ROOT="$case_dir"
+      export ISO_NORD_BOOT_ID="boot-actuel"
+      . "$ROOT/scripts/iso-ingest.sh"
+      printf '%s\n' "$$" > "$LOCK/pid"
+      printf 'ancien-token\n' > "$LOCK/token"
+      if [ "$mode" = "reboot" ]; then
+        printf 'boot-précédent\n' > "$LOCK/boot_id"
+        lock_process_start "$$" > "$LOCK/process_start"
+      else
+        printf 'boot-actuel\n' > "$LOCK/boot_id"
+        printf 'date-de-départ-d’un-ancien-processus\n' > "$LOCK/process_start"
+      fi
+      : > "$LOCK/ready"
+      acquire_lock
+      release_lock
+    ) >/dev/null 2>&1 || ok=0
+    [ ! -d "$case_dir/inbox.lock" ] || ok=0
+  done
+  if [ "$ok" -eq 1 ]; then
+    pass "boot différent et PID réutilisé rendent le lock stale"
+  else
+    fail "boot différent et PID réutilisé rendent le lock stale"
+  fi
+}
+
+test_recent_ownerless_lock_is_not_stolen() {
+  local case_dir="$TMP_ROOT/ownerless-lock"
+  mkdir -p "$case_dir/inbox.lock"
+  if (
+    export ISO_NORD_INGEST_SOURCE_ONLY=1
+    export ISO_NORD_MEDIA_ROOT="$case_dir"
+    export ISO_NORD_LOCK_INIT_GRACE=30
+    . "$ROOT/scripts/iso-ingest.sh"
+    acquire_lock
+  ) >/dev/null 2>&1; then
+    fail "un lock récent sans owner n’est pas volé pendant son initialisation"
+  elif [ -d "$case_dir/inbox.lock" ]; then
+    pass "un lock récent sans owner n’est pas volé pendant son initialisation"
+  else
+    fail "un lock récent sans owner reste intact"
   fi
 }
 
@@ -346,6 +397,103 @@ test_commit_failure_keeps_original() {
     pass "un échec commit/push laisse l’original dans inbox"
   else
     fail "un échec commit/push laisse l’original dans inbox"
+  fi
+}
+
+test_archive_retry_does_not_republish() {
+  local case_dir="$TMP_ROOT/archive-retry"
+  mkdir -p "$case_dir/inbox-processing" "$case_dir/inbox-publies" \
+    "$case_dir/videos" "$case_dir/photos" "$case_dir/bin" "$case_dir/repo/src/data"
+  printf 'vidéo\n' > "$case_dir/inbox-processing/test.mp4"
+  printf '// iso360:insert\n' > "$case_dir/repo/src/data/labs360.ts"
+  printf '#!/usr/bin/env bash\nfor last do :; done\nprintf poster > "$last"\n' \
+    > "$case_dir/bin/ffmpeg"
+  chmod +x "$case_dir/bin/ffmpeg"
+
+  (
+    export PATH="$case_dir/bin:$PATH"
+    export ISO_NORD_INGEST_SOURCE_ONLY=1
+    export ISO_NORD_MEDIA_ROOT="$case_dir"
+    export ISO_NORD_REPO="$case_dir/repo"
+    . "$ROOT/scripts/iso-ingest.sh"
+    detect_type() { printf 'video\n'; }
+    core_extract_meta() { printf '46.81 -71.20 2026:07:23\n'; }
+    core_geocode() {
+      printf '{"lat":46.81,"lon":-71.20,"dt":"2026:07:23","ym":"2026-07","name":"Test","city":"quebec","id":"test"}\n'
+    }
+    core_publish_verify() {
+      printf 'publish\n' >> "$case_dir/publish.count"
+      return 0
+    }
+    core_wire() {
+      printf '// %s\n' "$WIRE_NOTE" >> "$DATA"
+      return 0
+    }
+    core_build_guard() { return 0; }
+    core_commit_push() { return 0; }
+    core_file_is_clean() { return 0; }
+    archive_fail_once=1
+    mv() {
+      if [ "$archive_fail_once" -eq 1 ] && [[ "${2:-}" == "$PUBLIES/"* ]]; then
+        archive_fail_once=0
+        return 1
+      fi
+      command mv "$@"
+    }
+    process "$case_dir/inbox-processing/test.mp4" >/dev/null 2>&1 || true
+    process "$case_dir/inbox-processing/test.mp4" >/dev/null 2>&1
+  )
+  local publish_count=0
+  [ -f "$case_dir/publish.count" ] \
+    && publish_count="$(wc -l < "$case_dir/publish.count" | tr -d ' ')"
+  if [ "$publish_count" = "2" ] \
+    && [ -f "$case_dir/inbox-publies/test.mp4" ] \
+    && [ ! -f "$case_dir/inbox-processing/test.mp4" ]; then
+    pass "un retry d’archive après push ne republie ni média ni pin"
+  else
+    printf '  publications=%s archive=%s processing=%s\n' \
+      "$publish_count" \
+      "$([ -f "$case_dir/inbox-publies/test.mp4" ] && printf oui || printf non)" \
+      "$([ -f "$case_dir/inbox-processing/test.mp4" ] && printf oui || printf non)" >&2
+    fail "un retry d’archive après push ne republie ni média ni pin"
+  fi
+}
+
+test_crash_between_commit_and_push_resumes_push_only() {
+  local case_dir="$TMP_ROOT/commit-before-push" job_id=""
+  mkdir -p "$case_dir/media/inbox-processing" "$case_dir/repo/src/data"
+  git init -q --bare "$case_dir/remote.git"
+  (
+    cd "$case_dir/repo"
+    git init -q
+    git symbolic-ref HEAD refs/heads/main
+    git config user.name "Test"
+    git config user.email "test@example.invalid"
+    printf '// iso360:insert\n' > src/data/labs360.ts
+    git add src/data/labs360.ts
+    git commit -qm initial
+    git remote add origin "$case_dir/remote.git"
+    git push -q -u origin main
+  )
+  printf 'vidéo\n' > "$case_dir/media/inbox-processing/test.mp4"
+  (
+    export ISO_NORD_INGEST_SOURCE_ONLY=1
+    export ISO_NORD_MEDIA_ROOT="$case_dir/media"
+    export ISO_NORD_REPO="$case_dir/repo"
+    . "$ROOT/scripts/iso-ingest.sh"
+    job_id="$(ensure_job_marker "$case_dir/media/inbox-processing/test.mp4")"
+    printf '// ingest-job:%s\n' "$job_id" >> "$DATA_FILE"
+    git -C "$REPO" add "$DATA_FILE"
+    git -C "$REPO" commit -qm "pending ingest"
+    job_ready_for_archive "$case_dir/media/inbox-processing/test.mp4" "$job_id"
+    printf '%s\n' "$job_id" > "$case_dir/job-id"
+  )
+  job_id="$(cat "$case_dir/job-id")"
+  if git --git-dir="$case_dir/remote.git" show main:src/data/labs360.ts \
+      | grep -Fq "ingest-job:$job_id"; then
+    pass "un crash entre commit et push reprend le push sans republier"
+  else
+    fail "un crash entre commit et push reprend le push sans republier"
   fi
 }
 
@@ -412,7 +560,11 @@ test_unique_helpers
 test_ingest_can_be_sourced_without_running
 test_stale_lock_is_recovered
 test_active_lock_is_kept
+test_recent_ownerless_lock_is_not_stolen
+test_pid_reuse_and_reboot_do_not_keep_stale_lock
 test_commit_failure_keeps_original
+test_archive_retry_does_not_republish
+test_crash_between_commit_and_push_resumes_push_only
 test_dry_run_creates_no_persistent_state
 test_dry_run_processes_without_publishing
 

@@ -217,6 +217,7 @@ aucun popup — tout passe par les fichiers et le log.
 |---|---|
 | Dossier de dépôt (surveillé) | `/Volumes/SSD 1/iso-nord-media/inbox/` |
 | Quarantaine (GPS/type manquant) | `/Volumes/SSD 1/iso-nord-media/inbox-corriger/` |
+| Traitement/reprise | `/Volumes/SSD 1/iso-nord-media/inbox-processing/` |
 | Archive (originaux publiés) | `/Volumes/SSD 1/iso-nord-media/inbox-publies/` |
 | Journal | `/Volumes/SSD 1/iso-nord-media/inbox.log` |
 | Script | `scripts/iso-ingest.sh` (cœur partagé : `scripts/iso360-core.sh`) |
@@ -229,6 +230,9 @@ Sans lieu fiable → `inbox-corriger/` + un `.txt` explicatif (renommer + redép
 Une panne Nominatim est retentée avec timeout puis mène aussi en quarantaine : aucun
 nom ou pin n'est inventé. Les collisions reçoivent un suffixe (`-2`, `-3`…) et une
 publication média existante n'est jamais écrasée (cache immutable).
+Chaque original est d'abord réclamé dans `inbox-processing/`. Son job ID durable
+est aussi écrit dans `labs360.ts`; si l'archive rate après le push, une relance
+retente uniquement le `mv`, sans republier le média ni créer un deuxième pin.
 
 **Dépendances :** `brew install exiftool ffmpeg`. **Ne stitche PAS** les 35 segments
 DJI bruts (ça reste la commande manuelle `iso360`) — l'inbox n'accepte que des
@@ -246,9 +250,18 @@ launchctl load ~/Library/LaunchAgents/com.iso-nord.inbox.plist
 `launchctl list | grep iso-nord`. GPS manquant → voir `inbox-corriger/`. URL 200 KO →
 tunnel/Caddy (cf §3). Le plist du Mac Pro Intel utilise `/usr/local/bin` pour
 Homebrew. Son script pointe vers le clone NAS `/Volumes/SSD 1/iso-nord`.
-Le verrou contient le PID et récupère automatiquement un lock laissé par un crash.
+Le verrou protège aussi sa fenêtre d'initialisation et valide boot + PID + heure de
+départ du processus avant de considérer un propriétaire vivant; reboot et PID
+réutilisé ne bloquent donc pas la boîte indéfiniment.
 `--dry-run` reste en lecture seule (aucun dossier, lock, log, média ou changement git).
 Avant l'archive, le pipeline exige build = 10 pages, commit et, sauf `--no-push`, push réussi.
+
+**Preflight NAS avant de charger le watcher :** vérifier Node `>=22.12`, puis
+`command -v exiftool ffmpeg`, exécuter `npm ci`, les tests shell et le build.
+`package-lock.json` doit rester propre. Si un ancien `npm install` l'a modifié,
+inspecter `git diff -- package-lock.json`; restaurer le fichier depuis `HEAD`
+seulement si ce diff local n'est pas intentionnel. La procédure complète est dans
+`docs/HANDOFF-codex-labs360-inbox.md`.
 
 ---
 

@@ -1,7 +1,9 @@
 # Handoff (Codex) — Boîte de dépôt auto « Québec en 360 » — À ACTIVER SUR LE NAS
 
 > Écrit le 2026-07-23. Reprend le travail commencé dans la session Claude Code.
-> **Branche : `feat/labs360-inbox`** (poussée sur GitHub). Objectif : déposer un
+> **Branche : `feat/labs360-inbox`**. Les derniers correctifs whole-branch sont
+> **locaux et non poussés** au moment de cette mise à jour (`git status -sb` fait foi).
+> Objectif : déposer un
 > clip / une photo / un pano fini dans un dossier partagé du **Mac Pro NAS** →
 > pin géolocalisé publié tout seul sur `theo-picture.com/labs/360`.
 
@@ -58,35 +60,67 @@ Le NAS opère sur la branche **`main`** → **il faut merger `feat/labs360-inbox
      la copie média refuse atomiquement tout écrasement sous cache immutable;
    - garde-fou build vérifie réellement **exactement 10 pages**;
    - verrou PID récupérable après crash, compatible Bash 3.2; curls bornés;
+   - fenêtre d'initialisation du lock protégée; identité = boot + PID + heure de
+     départ du processus pour détecter reboot et réutilisation de PID;
+   - chaque fichier passe par `inbox-processing/` avec un job ID durable écrit
+     dans `labs360.ts`; un archivage raté reprend sans republier;
    - `iso-ingest --dry-run` ne crée ni dossier, lock, log, média ni changement repo;
    - tests reproductibles : `tests/labs360-pipeline.sh`.
 
 ### Environnement déjà provisionné
-- **MacBook** : exiftool + ffmpeg installés (pour tests). `gh` connecté à `theodorebeaupre-prog` (proprio du repo).
+- **MacBook** : Node `v24.18.0`, exiftool + ffmpeg installés; `package-lock.json`
+  propre dans ce clone au dernier contrôle. `gh` connecté à `theodorebeaupre-prog`.
 - **NAS** (`Pro-de-Theodore`, joignable en SSH depuis le MacBook :
   `ssh -i ~/.ssh/id_ed25519_macpro theodorebeaupre@100.99.244.24`) :
   - **Deploy key** créée (`~/.ssh/id_ed25519_isonord_deploy`), alias SSH `github-isonord`
     dans `~/.ssh/config`, **ajoutée à GitHub en read-write** (« iso-nord-nas (auto-publish) », id 158141078).
   - **Repo cloné** : `/Volumes/SSD 1/iso-nord` (branche `main`, remote via `github-isonord`,
-    identité git « iso-nord NAS » / theodore.beaupre@icloud.com). **`npm install` fait.**
-  - **`brew install exiftool ffmpeg`** : lancé, **ffmpeg installé, exiftool en cours** au
-    moment de l'arrêt → **À VÉRIFIER/FINIR** (voir ci-dessous).
+    identité git « iso-nord NAS » / theodore.beaupre@icloud.com).
+  - Un ancien `npm install` et l'installation Homebrew ont été lancés, mais **la
+    version Node, la présence finale d'exiftool et la propreté de package-lock sur
+    le NAS n'ont pas été revérifiées dans cette session**. Utiliser le preflight.
 
 ---
 
 ## ⛔ CE QUI RESTE À FAIRE
 
-### A. Terminer l'install NAS (probablement déjà fini)
-```bash
-ssh -i ~/.ssh/id_ed25519_macpro theodorebeaupre@100.99.244.24 \
-  'bash -lc "command -v exiftool && command -v ffmpeg || brew install exiftool ffmpeg"'
-```
-Attendu : les deux binaires présents dans `/usr/local/bin`.
-
-### B. Fusionner et déployer le code sur `main`
+### A. Fusionner et déployer le code sur `main`
 - La revue whole-branch est faite. **Merger `feat/labs360-inbox` → `main`** et
   `git push origin main`.
-- ⚠️ **Rien n'est encore poussé sur `main`** : le site en prod n'a PAS le type `photo` tant que ce n'est pas mergé.
+- ⚠️ **Rien n'est encore poussé sur `main`** : le site en prod n'a PAS le type
+  `photo` tant que ce n'est pas mergé.
+
+### B. Preflight NAS obligatoire (après la fusion)
+
+```bash
+ssh -i ~/.ssh/id_ed25519_macpro theodorebeaupre@100.99.244.24
+cd "/Volumes/SSD 1/iso-nord"
+
+# Un ancien npm install peut avoir sali le lock. Inspecter avant de restaurer.
+git status --short -- package-lock.json
+git diff -- package-lock.json
+# Si le diff est uniquement un effet local non voulu :
+# git restore --source=HEAD -- package-lock.json
+git diff --quiet -- package-lock.json
+git diff --cached --quiet -- package-lock.json
+
+git pull --ff-only origin main
+node -e 'const [major, minor] = process.versions.node.split(".").map(Number);
+  if (major < 22 || (major === 22 && minor < 12)) process.exit(1)'
+command -v exiftool
+command -v ffmpeg
+exiftool -ver
+ffmpeg -version | head -1
+
+npm ci
+git diff --exit-code -- package-lock.json
+/bin/bash tests/labs360-pipeline.sh
+npm run build
+```
+Attendu : Node `>=22.12`, exiftool + ffmpeg présents, lock inchangé, tests verts,
+build = exactement 10 pages. Si `git diff --quiet` bloque, ne pas lancer le watcher :
+inspecter le diff; restaurer seulement s'il vient bien de l'ancien `npm install`.
+Si un binaire manque : `/usr/local/bin/brew install exiftool ffmpeg`.
 
 ### C. Activer + tester sur le NAS (bout-en-bout réel)
 ```bash
@@ -117,9 +151,12 @@ ssh -i ~/.ssh/id_ed25519_macpro theodorebeaupre@100.99.244.24 'bash -lc "
   exige un `git pull --ff-only origin main` réussi en tête de lot avant de publier.
 - **Cache média 1 an** : jamais réutiliser un nom de fichier média publié (noms versionnés
   `<id>-<AAAA-MM>[-N].<ext>`); la publication refuse tout chemin déjà présent.
-- **Dossiers frères** de `inbox/` (`inbox-corriger/`, `inbox-publies/`, `inbox.log`,
-  `inbox.lock`) : hors du dossier surveillé, pour ne pas boucler `WatchPaths`. Créés
-  automatiquement par `iso-ingest.sh` au 1er run.
+- **Dossiers frères** de `inbox/` (`inbox-corriger/`, `inbox-processing/`,
+  `inbox-publies/`, `inbox.log`, `inbox.lock`) : hors du dossier surveillé,
+  pour ne pas boucler `WatchPaths`. Créés automatiquement au 1er run.
+- Après un push réussi, le job ID est dans le commentaire de `labs360.ts`. Si le
+  déplacement vers l'archive rate, relancer `scripts/iso-ingest.sh` : il reconnaît
+  le job et retente seulement l'archive, sans nouveau média ni nouveau pin.
 - **exiftool lit le GPS des MP4/MOV DJI** (pas seulement JPEG) → clips supportés.
 - Build attendu : **exactement 10 pages**. Compte différent ou build cassé →
   `labs360.ts` restauré, rien poussé.
