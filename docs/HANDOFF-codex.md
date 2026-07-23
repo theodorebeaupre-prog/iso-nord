@@ -14,9 +14,11 @@
   origine dérivée du header **Host**). Secrets en variables Vercel (`MAPKIT_KEY_ID`,
   `MAPKIT_TEAM_ID`, `MAPKIT_PRIVATE_KEY_B64`) + `.env` local gitignoré. La clé `.p8`
   n'est JAMAIS committée. L'auth ne marche pas en local (origine restreinte) → tester live.
-- **Deux pièges résolus** (ne pas régresser) : (1) dériver l'origine du token du header
-  `Host`, pas `Origin` (Safari/iPad ne l'envoie pas → carte cassée sur www) ; (2) passer
-  la région au **constructeur** `new mapkit.Map` sinon la carte se cadre sur 0°,0°.
+- **Pièges résolus** (ne pas régresser) : (1) le matcher de `middleware.ts` doit exclure
+  `/api` — sinon les visiteurs EN se font rediriger `/api/mapkit-token` → `/en/api/…`
+  (404) et la carte ne charge jamais (c'était LE bug iPad) ; (2) dériver l'origine du
+  token du header `Host`, pas `Origin` (Safari ne l'envoie pas sur www) ; (3) passer la
+  région au **constructeur** `new mapkit.Map` sinon cadrage sur 0°,0°.
 - **`iso360 <dossier-session-PANORAMA>`** : nouvelle commande (scripts/iso360.sh, symlink
   /usr/local/bin) qui fait tout — stitch Hugin → géoloc EXIF+Nominatim → tunnel → câblage
   `labs360.ts` (avec lat/lon) → build → push. Options `--replace <id>`, `--name`, `--city`,
