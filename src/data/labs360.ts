@@ -182,5 +182,19 @@ export const PLACES: Labs360Place[] = [
     // Pano drone DJI (14 déc 2025), servi via Cloudflare Tunnel.
     media: 'https://media.theo-picture.com/panoramas/centre-monseigneur-marcoux-2025-12.jpg',
   },
+  {
+    id: "limoilou",
+    city: "quebec",
+    type: "photo",
+    name: "Limoilou",
+    desc: {
+      fr: "Limoilou \u2014 vue a\u00e9rienne capt\u00e9e au drone.",
+      en: "Limoilou \u2014 aerial view captured by drone.",
+    },
+    credit: '',
+    lat: 46.8258833333333, lon: -71.2177472222222,
+    // Auto-publié par iso-ingest; ingest-job:1784828331-25308-6138 (2025:12:01 16:40:02)
+    media: "https://media.theo-picture.com/photos/limoilou-2025-12.jpg",
+  },
   // iso360:insert — les nouveaux lieux publiés par `iso360` s'insèrent au-dessus de cette ligne
 ];
