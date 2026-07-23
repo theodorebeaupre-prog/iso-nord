@@ -21,6 +21,49 @@ const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matc
 const DATA = JSON.parse(document.getElementById('l360-data').textContent);
 const placeById = Object.fromEntries(DATA.places.map((p) => [p.id, p]));
 
+/* ── Diagnostic (activé par ?debug dans l'URL) ─────────────────────────────── */
+// Affiche un panneau lisible sur l'appareil (utile pour déboguer iPad/Safari où
+// je n'ai pas la console). À lire à voix haute / capture d'écran.
+const DEBUG = /[?&]debug/.test(location.search);
+const dbgState = {};
+let dbgBox = null;
+function dbg(key, val) {
+  if (!DEBUG) return;
+  dbgState[key] = val;
+  if (!dbgBox) {
+    dbgBox = document.createElement('pre');
+    dbgBox.style.cssText =
+      'position:fixed;bottom:0;left:0;right:0;z-index:99999;margin:0;padding:10px;' +
+      'background:rgba(0,0,0,.9);color:#c8ff00;font:12px/1.5 monospace;' +
+      'max-height:55vh;overflow:auto;white-space:pre-wrap;border-top:2px solid #c8ff00;';
+    document.body.appendChild(dbgBox);
+  }
+  dbgBox.textContent = Object.entries(dbgState).map(([k, v]) => `${k}: ${v}`).join('\n');
+}
+if (DEBUG) {
+  const gl = (() => { try { const c = document.createElement('canvas');
+    return !!(c.getContext('webgl') || c.getContext('experimental-webgl')); } catch { return false; } })();
+  const gl2 = (() => { try { return !!document.createElement('canvas').getContext('webgl2'); } catch { return false; } })();
+  dbg('origin', location.origin);
+  dbg('webgl', gl);
+  dbg('webgl2', gl2);
+  dbg('reducedMotion', reducedMotion);
+  dbg('dpr', window.devicePixelRatio);
+  window.addEventListener('error', (e) => dbg('js-error', `${e.message} @ ${e.filename}:${e.lineno}`));
+  window.addEventListener('unhandledrejection', (e) => dbg('promise-reject', String(e.reason)));
+  // Actualise le compte de requêtes/erreurs de tuiles Apple toutes les 1,5 s.
+  setInterval(() => {
+    const apple = performance.getEntriesByType('resource').filter((e) => e.name.includes('apple'));
+    dbg('appleReqs', apple.length);
+    const errs = apple.filter((e) => e.responseStatus >= 400);
+    dbg('tileErrors', errs.length + (errs[0] ? ` (${errs[0].responseStatus})` : ''));
+    const ann = document.querySelector('.mk-annotation-container');
+    dbg('annotations', ann ? ann.children.length : 'no-container');
+    const canvas = document.querySelector('#l360-mapkit canvas');
+    dbg('mapCanvas', canvas ? `${canvas.width}x${canvas.height}` : 'none');
+  }, 1500);
+}
+
 /* ── Smooth scroll + curseur + reveals (repris de labs.js) ────────────────── */
 let lenis = null;
 if (!reducedMotion) {
@@ -98,15 +141,19 @@ legends.forEach((leg) => { leg.hidden = leg.dataset.legendCity !== currentCity()
 
 function initMapKit() {
   if (!window.mapkit) return;
+  dbg('mapkit', `loaded v${mapkit.version || '?'}`);
   mapkit.init({
     authorizationCallback(done) {
       fetch('/api/mapkit-token')
-        .then((r) => (r.ok ? r.text() : Promise.reject(new Error(r.status))))
-        .then(done)
-        .catch(() => { /* auth impossible (local/offline) → repli légende */ });
+        .then((r) => (r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status))))
+        .then((t) => { dbg('token', `ok (${t.length} car.)`); done(t); })
+        .catch((e) => dbg('token', `ÉCHEC ${e.message || e}`));
     },
     language: DATA.lang === 'fr' ? 'fr-CA' : 'en',
   });
+  if (typeof mapkit.addEventListener === 'function') {
+    mapkit.addEventListener('error', (e) => dbg('mapkit-error', e.type || JSON.stringify(e)));
+  }
 
   // Région passée au constructeur → cadrage initial fiable (sinon MapKit
   // retombe sur 0°,0° avant qu'un map.region tardif ne s'applique).
@@ -134,6 +181,10 @@ function initMapKit() {
     return ann;
   });
   map.addAnnotations(annotations);
+  dbg('mapType', map.mapType);
+  dbg('region', map.region ? `${map.region.center.latitude.toFixed(3)},${map.region.center.longitude.toFixed(3)}` : 'none');
+  ['error', 'region-change-end'].forEach((ev) =>
+    map.addEventListener(ev, (e) => dbg('map-' + ev, e && e.type ? e.type : 'fired')));
 
   // iOS Safari : forcer MapKit à recalculer/repeindre son canvas une fois la
   // carte réellement visible (init sous le fold → tuiles parfois blanches).
