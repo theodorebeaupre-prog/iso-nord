@@ -10,8 +10,10 @@ import { geolocation } from '@vercel/edge';
  * visite, sans cookie.
  */
 export const config = {
-  // Ne tourne que sur les routes de page ; exclut assets, fichiers et statiques.
-  matcher: ['/((?!_astro|assets|favicon|robots|sitemap|.*\\.).*)'],
+  // Ne tourne que sur les routes de page ; exclut assets, fichiers, statiques
+  // ET les fonctions serverless /api (sinon un visiteur anglophone se fait
+  // rediriger /api/mapkit-token → /en/api/mapkit-token → 404, cassant la carte).
+  matcher: ['/((?!_astro|assets|favicon|robots|sitemap|api|.*\\.).*)'],
 };
 
 export default function middleware(request: Request) {
