@@ -82,7 +82,7 @@ printf '\n%s réussite(s), %s échec(s)\n' "$PASS" "$FAIL"
 
 - [ ] **Step 2: Vérifier le rouge**
 
-Run: `/bin/bash tests/labs360-page.sh`  
+Run: `/bin/bash tests/labs360-page.sh`
 Expected: FAIL sur au moins `placeholder absent: vieux-quebec`.
 
 - [ ] **Step 3: Retirer exactement les six entrées**
@@ -164,7 +164,7 @@ Appeler `test_quebec_only_markup_and_copy` après `test_real_quebec_ids_only`.
 
 - [ ] **Step 2: Vérifier le rouge**
 
-Run: `/bin/bash tests/labs360-page.sh`  
+Run: `/bin/bash tests/labs360-page.sh`
 Expected: FAIL sur `le runtime filtre explicitement Québec`.
 
 - [ ] **Step 3: Filtrer une seule fois dans le frontmatter**
@@ -267,7 +267,7 @@ Appeler la fonction dans la suite.
 
 - [ ] **Step 2: Vérifier le rouge**
 
-Run: `/bin/bash tests/labs360-page.sh`  
+Run: `/bin/bash tests/labs360-page.sh`
 Expected: FAIL sur `le JavaScript ne gère plus les villes ni le hash`.
 
 - [ ] **Step 3: Remplacer les régions fixes et le changement de ville**

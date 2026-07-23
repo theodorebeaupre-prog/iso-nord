@@ -1,6 +1,6 @@
 # Labs 360 — Québec seulement + polish ciblé
 
-**Date :** 2026-07-23  
+**Date :** 2026-07-23
 **Statut :** approuvé verbalement par Théo, à relire avant implémentation
 
 ## Objectif
