@@ -196,5 +196,19 @@ export const PLACES: Labs360Place[] = [
     // Auto-publié par iso-ingest; ingest-job:1784828331-25308-6138 (2025:12:01 16:40:02)
     media: "https://media.theo-picture.com/photos/limoilou-2025-12.jpg",
   },
+  {
+    id: "colline-parlementaire",
+    city: "quebec",
+    type: "photo",
+    name: "Colline Parlementaire",
+    desc: {
+      fr: "Colline Parlementaire \u2014 vue a\u00e9rienne capt\u00e9e au drone.",
+      en: "Colline Parlementaire \u2014 aerial view captured by drone.",
+    },
+    credit: '',
+    lat: 46.8030111111111, lon: -71.2182055555556,
+    // Auto-publié par iso-ingest; ingest-job:1784829279-25791-17325 (2025:10:20 18:50:55)
+    media: "https://media.theo-picture.com/photos/colline-parlementaire-2025-10.jpg",
+  },
   // iso360:insert — les nouveaux lieux publiés par `iso360` s'insèrent au-dessus de cette ligne
 ];
