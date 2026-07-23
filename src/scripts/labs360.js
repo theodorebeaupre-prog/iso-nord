@@ -57,16 +57,9 @@ if (!reducedMotion) {
   gsap.set(heroBits, { opacity: 0, y: 40 });
   gsap.to(heroBits, { opacity: 1, y: 0, duration: 1.1, stagger: 0.12, ease: 'power3.out', delay: 0.15 });
 
-  // Reveal de la carte à l'entrée dans le viewport (opacity seulement : pas de
-  // translate, qui décalerait le rendu MapKit).
-  const mapEl = document.querySelector('.l360-map');
-  gsap.set(mapEl, { opacity: 0 });
-  const io = new IntersectionObserver((entries) => {
-    if (!entries[0].isIntersecting) return;
-    io.disconnect();
-    gsap.to(mapEl, { opacity: 1, duration: 1, ease: 'power2.out' });
-  }, { rootMargin: '0px 0px -15% 0px' });
-  io.observe(mapEl);
+  // NB : on n'anime PAS l'opacité du conteneur carte. iOS Safari laisse un
+  // canvas WebGL créé sous un ancêtre `opacity:0` blanc de façon permanente
+  // (les tuiles satellite ne s'affichaient jamais, seuls les pins DOM oui).
 }
 
 /* ── Carte satellite Apple Maps (MapKit JS) ───────────────────────────────── */
@@ -141,6 +134,19 @@ function initMapKit() {
     return ann;
   });
   map.addAnnotations(annotations);
+
+  // iOS Safari : forcer MapKit à recalculer/repeindre son canvas une fois la
+  // carte réellement visible (init sous le fold → tuiles parfois blanches).
+  const nudge = () => window.dispatchEvent(new Event('resize'));
+  requestAnimationFrame(nudge);
+  const el = document.getElementById('l360-mapkit');
+  const io = new IntersectionObserver((entries) => {
+    if (!entries[0].isIntersecting) return;
+    nudge();
+    setTimeout(nudge, 300);   // second passage après la 1re salve de tuiles
+    io.disconnect();
+  }, { threshold: 0.1 });
+  io.observe(el);
 }
 
 // MapKit charge en async : attendre son script avant d'initialiser.
