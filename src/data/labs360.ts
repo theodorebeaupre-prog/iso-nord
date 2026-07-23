@@ -89,13 +89,12 @@ export const PLACES: Labs360Place[] = [
     type: '360',
     name: 'Domaine de Maizerets',
     desc: {
-      fr: 'Maizerets et Limoilou sous la neige, au coucher du soleil d’hiver.',
-      en: 'Maizerets and Limoilou under snow, at winter sunset.',
+      fr: 'Le domaine et son arboretum, vus du ciel en fin de journée.',
+      en: 'The estate and its arboretum, seen from above at dusk.',
     },
     credit: '',
-    lat: 46.8436, lon: -71.2235,
-    // Pano drone DJI (14 déc 2025), servi via Cloudflare Tunnel.
-    media: 'https://media.theo-picture.com/panoramas/maizerets-hiver-2025-12.jpg',
+    lat: 46.8360, lon: -71.2139,
+    media: 'https://media.theo-picture.com/panoramas/maizerets-2025-10.jpg',
   },
   {
     id: 'patro-roc-amadour',
@@ -168,6 +167,20 @@ export const PLACES: Labs360Place[] = [
     lat: 46.849922222222226, lon: -71.21155555555556,
     // Pano drone auto-publié par iso360 (2025:10:25 13:07:26)
     media: "https://media.theo-picture.com/panoramas/giffard-2025-10.jpg",
+  },
+  {
+    id: 'centre-monseigneur-marcoux',
+    city: 'quebec',
+    type: '360',
+    name: 'Centre Monseigneur-Marcoux',
+    desc: {
+      fr: 'Le centre et le quartier Limoilou sous la neige, au coucher du soleil d’hiver.',
+      en: 'The centre and the Limoilou neighbourhood under snow, at winter sunset.',
+    },
+    credit: '',
+    lat: 46.8436, lon: -71.2235,
+    // Pano drone DJI (14 déc 2025), servi via Cloudflare Tunnel.
+    media: 'https://media.theo-picture.com/panoramas/centre-monseigneur-marcoux-2025-12.jpg',
   },
   // iso360:insert — les nouveaux lieux publiés par `iso360` s'insèrent au-dessus de cette ligne
 ];
