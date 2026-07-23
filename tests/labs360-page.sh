@@ -39,7 +39,26 @@ test_quebec_only_markup_and_copy() {
   pass "le markup et la copy sont Québec seulement"
 }
 
+test_labs_project_copy_quebec_only() {
+  local fr_project en_project
+  fr_project="$(rg -F "{ name: 'Québec en 360'" "$UI")"
+  en_project="$(rg -F "{ name: 'Québec in 360'" "$UI")"
+
+  [ -n "$fr_project" ] && [ -n "$en_project" ] || {
+    fail "les deux cartes projet Labs360 existent"; return;
+  }
+  ! printf '%s\n%s\n' "$fr_project" "$en_project" | rg -qi 'montréal|clips?' || {
+    fail "les cartes projet Labs360 n'annoncent plus Montréal ou des clips"; return;
+  }
+  printf '%s\n' "$fr_project" | rg -qi 'québec.*panoramas?.*photograph' &&
+    printf '%s\n' "$en_project" | rg -qi 'québec city.*panoramas?.*aerial photographs' || {
+      fail "les cartes projet Labs360 décrivent Québec, panoramas et photos"; return;
+    }
+  pass "les cartes projet Labs360 sont Québec seulement"
+}
+
 test_real_quebec_places_only
 test_quebec_only_markup_and_copy
+test_labs_project_copy_quebec_only
 printf '\n%s réussite(s), %s échec(s)\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
