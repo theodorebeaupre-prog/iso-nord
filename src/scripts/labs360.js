@@ -13,7 +13,8 @@
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import Lenis from 'lenis';
-import { regionForPlaces } from './labs360-map.js';
+import { createMap } from './labs360-map.js';
+import { loadMapKit, observeMap } from './labs360-map-loader.js';
 import { shouldAnimateModalOpen } from './labs360-motion.js';
 import { badgeForType } from './labs360-view.js';
 
@@ -67,46 +68,23 @@ if (!reducedMotion) {
 /* ── Carte satellite Apple Maps (MapKit JS) ───────────────────────────────── */
 let map = null;
 
-function initMapKit() {
-  if (!window.mapkit) return;
-  mapkit.init({
+function initMapKit(mapkitApi) {
+  map = createMap({
+    mapkitApi,
+    elementId: 'l360-mapkit',
+    places: DATA.places,
+    labels: DATA,
+    language: DATA.lang === 'fr' ? 'fr-CA' : 'en',
     authorizationCallback(done) {
       fetch('/api/mapkit-token')
         .then((r) => (r.ok ? r.text() : Promise.reject(new Error('HTTP ' + r.status))))
         .then(done)
         .catch(() => { /* auth impossible (local/offline) → repli légende */ });
     },
-    language: DATA.lang === 'fr' ? 'fr-CA' : 'en',
+    onSelect(placeId) {
+      openModal(placeId, null);
+    },
   });
-
-  // Région passée au constructeur → cadrage initial fiable (sinon MapKit
-  // retombe sur 0°,0° avant qu'un map.region tardif ne s'applique).
-  map = new mapkit.Map('l360-mapkit', {
-    region: regionForPlaces(DATA.places),
-    mapType: mapkit.Map.MapTypes.Hybrid,          // satellite + libellés
-    colorScheme: mapkit.Map.ColorSchemes.Dark,
-    showsCompass: mapkit.FeatureVisibility.Hidden,
-    showsScale: mapkit.FeatureVisibility.Hidden,
-    showsMapTypeControl: false,
-    showsZoomControl: true,
-    showsUserLocationControl: false,
-    isRotationEnabled: true,
-  });
-
-  const annotations = DATA.places.map((p) => {
-    const glyph = p.type === '360' ? '◉' : p.type === 'photo' ? '◆' : '▶';
-    const badge = p.type === '360' ? DATA.badge360 : p.type === 'photo' ? DATA.badgePhoto : DATA.badgeVideo;
-    const ann = new mapkit.MarkerAnnotation(new mapkit.Coordinate(p.lat, p.lon), {
-      color: '#c8ff00',
-      glyphText: glyph,
-      title: p.name,
-      subtitle: badge,
-    });
-    ann.data = { id: p.id };
-    ann.addEventListener('select', () => openModal(p.id, null));
-    return ann;
-  });
-  map.addAnnotations(annotations);
 
   // iOS Safari : forcer MapKit à recalculer/repeindre son canvas une fois la
   // carte réellement visible (init sous le fold → tuiles parfois blanches).
@@ -122,12 +100,20 @@ function initMapKit() {
   io.observe(el);
 }
 
-// MapKit charge en async : attendre son script avant d'initialiser.
-if (window.mapkit) {
-  initMapKit();
-} else {
-  const s = document.getElementById('mapkit-js');
-  if (s) s.addEventListener('load', initMapKit, { once: true });
+// MapKit est totalement absent du chargement initial. La collection reste
+// utilisable si Apple, le jeton ou le réseau échoue.
+const mapRegion = document.querySelector('.l360-map');
+if (mapRegion && DATA.places.length) {
+  observeMap(mapRegion, async () => {
+    mapRegion.dataset.state = 'loading';
+    try {
+      const mapkitApi = await loadMapKit();
+      initMapKit(mapkitApi);
+      mapRegion.dataset.state = 'ready';
+    } catch {
+      mapRegion.dataset.state = 'error';
+    }
+  });
 }
 
 /* ── Modal viewer ─────────────────────────────────────────────────────────── */

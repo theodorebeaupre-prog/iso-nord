@@ -6,6 +6,7 @@ PAGE="${PAGE:-$ROOT/src/components/pages/Labs360.astro}"
 UI="${UI:-$ROOT/src/i18n/ui.ts}"
 SCRIPT="${SCRIPT:-$ROOT/src/scripts/labs360.js}"
 MAP_HELPER="${MAP_HELPER:-$ROOT/src/scripts/labs360-map.js}"
+MAP_LOADER="${MAP_LOADER:-$ROOT/src/scripts/labs360-map-loader.js}"
 MOTION_HELPER="${MOTION_HELPER:-$ROOT/src/scripts/labs360-motion.js}"
 VIEW_HELPER="${VIEW_HELPER:-$ROOT/src/scripts/labs360-view.js}"
 PASS=0
@@ -210,7 +211,8 @@ test_quebec_only_map_logic() {
 }
 
 test_region_for_places() {
-  rg -Fq 'region: regionForPlaces(DATA.places)' "$SCRIPT" || {
+  rg -Fq 'region: regionForPlaces(places, mapkitApi)' "$MAP_HELPER" &&
+    rg -Fq 'map = createMap({' "$SCRIPT" || {
     fail "le constructeur MapKit utilise les lieux publiés"; return;
   }
   node --input-type=module - "$MAP_HELPER" <<'NODE'
@@ -236,7 +238,7 @@ class CoordinateRegion {
 }
 globalThis.mapkit = { Coordinate, CoordinateSpan, CoordinateRegion };
 
-const { regionForPlaces } = await import(`file://${process.argv[2]}`);
+const { regionForPlaces, createMap } = await import(`file://${process.argv[2]}`);
 const closeTo = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-9);
 const assertRegion = (region, latitude, longitude, latitudeDelta, longitudeDelta) => {
   closeTo(region.center.latitude, latitude);
@@ -252,9 +254,120 @@ assertRegion(regionForPlaces([
   { lat: 46.9, lon: -71.3 }, { lat: 47, lon: -71.2 },
   { lat: 46.75, lon: -71 }, { lat: 46.95, lon: -71.45 },
 ]), 46.85, -71.25, 0.54, 0.9);
+
+let initialized = null;
+let selected = null;
+class MapClass {
+  static MapTypes = { Hybrid: 'hybrid' };
+  static ColorSchemes = { Dark: 'dark' };
+  constructor(elementId, options) {
+    this.elementId = elementId;
+    this.options = options;
+    this.annotations = [];
+  }
+  addAnnotations(annotations) { this.annotations = annotations; }
+}
+class MarkerAnnotation {
+  constructor(coordinate, options) {
+    this.coordinate = coordinate;
+    this.options = options;
+    this.listeners = {};
+  }
+  addEventListener(name, callback) { this.listeners[name] = callback; }
+}
+const mapkitApi = {
+  Coordinate,
+  CoordinateSpan,
+  CoordinateRegion,
+  Map: MapClass,
+  MarkerAnnotation,
+  FeatureVisibility: { Hidden: 'hidden' },
+  init(options) { initialized = options; },
+};
+const places = [
+  { id: 'a', type: '360', name: 'A', lat: 46.8, lon: -71.2 },
+  { id: 'b', type: 'photo', name: 'B', lat: 46.9, lon: -71.3 },
+];
+const map = createMap({
+  mapkitApi,
+  elementId: 'map',
+  places,
+  labels: { badge360: '360°', badgePhoto: 'Photo', badgeVideo: 'Clip' },
+  language: 'fr-CA',
+  authorizationCallback() {},
+  onSelect(id) { selected = id; },
+});
+assert.equal(initialized.language, 'fr-CA');
+assert.equal(map.elementId, 'map');
+closeTo(map.options.region.center.latitude, 46.85);
+assert.equal(map.annotations.length, 2);
+map.annotations[1].listeners.select();
+assert.equal(selected, 'b');
 NODE
   [ "$?" -eq 0 ] || { fail "regionForPlaces calcule les cadrages vide, seul et six lieux"; return; }
   pass "regionForPlaces calcule les cadrages vide, seul et six lieux"
+}
+
+test_deferred_mapkit_loader() {
+  node --input-type=module - "$MAP_LOADER" <<'NODE'
+import assert from 'node:assert/strict';
+const {
+  loadMapKit,
+  observeMap,
+  resetMapKitLoaderForTests,
+} = await import(`file://${process.argv[2]}`);
+
+const listeners = {};
+const scripts = [];
+const script = {
+  dataset: {},
+  addEventListener(type, callback) { listeners[type] = callback; },
+};
+const documentRef = {
+  head: { append(node) { scripts.push(node); } },
+  createElement() { return script; },
+  querySelector() { return scripts[0] ?? null; },
+};
+const windowRef = {};
+const first = loadMapKit({ documentRef, windowRef, timeoutMs: 50 });
+const second = loadMapKit({ documentRef, windowRef, timeoutMs: 50 });
+assert.equal(first, second);
+assert.equal(scripts.length, 1);
+assert.equal(script.dataset.mapkitLoader, '');
+windowRef.mapkit = { loaded: true };
+listeners.load();
+assert.equal(await first, windowRef.mapkit);
+
+let observed = null;
+let disconnected = false;
+let called = 0;
+class FakeObserver {
+  constructor(callback, options) {
+    this.callback = callback;
+    assert.equal(options.rootMargin, '500px 0px');
+  }
+  observe(element) { observed = element; }
+  disconnect() { disconnected = true; }
+}
+const element = {};
+const observer = observeMap(element, () => { called += 1; }, FakeObserver);
+assert.equal(observed, element);
+observer.callback([{ isIntersecting: false }]);
+observer.callback([{ isIntersecting: true }]);
+observer.callback([{ isIntersecting: true }]);
+assert.equal(called, 1);
+assert.equal(disconnected, true);
+
+resetMapKitLoaderForTests();
+NODE
+  [ "$?" -eq 0 ] || {
+    fail "le chargeur MapKit différé respecte cache et intersection"; return;
+  }
+  ! rg -Fq '<script id="mapkit-js"' "$PAGE" &&
+    rg -Fq "from './labs360-map-loader.js'" "$SCRIPT" || {
+      fail "MapKit ne doit plus charger dans le head"; return;
+    }
+  pass "MapKit charge une seule fois à l’approche de la carte"
 }
 
 test_targeted_polish_contract() {
@@ -324,6 +437,7 @@ test_labs_project_copy_quebec_only
 test_cinematic_collection_and_seo
 test_quebec_only_map_logic
 test_region_for_places
+test_deferred_mapkit_loader
 test_targeted_polish_contract
 test_reduced_motion_modal_opens_instantly
 printf '\n%s réussite(s), %s échec(s)\n' "$PASS" "$FAIL"
