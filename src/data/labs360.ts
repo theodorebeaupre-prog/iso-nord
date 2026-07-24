@@ -157,5 +157,23 @@ export const PLACES: Labs360Place[] = [
     previewWidth: 1600,
     previewHeight: 900,
   },
+  {
+    id: "maizerets-2",
+    city: "quebec",
+    type: "360",
+    name: "Maizerets",
+    desc: {
+      fr: "Maizerets \u2014 vue a\u00e9rienne capt\u00e9e au drone.",
+      en: "Maizerets \u2014 aerial view captured by drone.",
+    },
+    credit: '',
+    capturedAt: "2026-07",
+    lat: 46.8322444444444, lon: -71.2243611111111,
+    // Auto-publié par iso-ingest; ingest-job:1784850144-29389-20409 (2026:07:23 19:06:36)
+    media: "https://media.theo-picture.com/panoramas/maizerets-2-2026-07-3.jpg",
+    preview: "/assets/labs360/previews/maizerets-2-2026-07.webp",
+    previewWidth: 1600,
+    previewHeight: 800,
+  },
   // iso360:insert — les nouveaux lieux publiés par `iso360` s'insèrent au-dessus de cette ligne
 ];
