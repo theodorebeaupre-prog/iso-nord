@@ -16,14 +16,14 @@ fail(){ FAIL=$((FAIL + 1)); printf 'not ok - %s\n' "$1" >&2; }
 
 has_exact_real_quebec_places() {
   local data="$1" expected removed id ids places quebec_city_count id_count
-  expected="maizerets patro-roc-amadour giffard centre-monseigneur-marcoux limoilou colline-parlementaire"
+  expected="maizerets patro-roc-amadour giffard centre-monseigneur-marcoux limoilou colline-parlementaire maizerets-2 maizerets-3"
   removed="vieux-quebec chute-montmorency ile-orleans vieux-port mont-royal centre-ville"
   places="$(sed -n '/^export const PLACES: Labs360Place\[\] = \[$/,/^[[:space:]]*\/\/ iso360:insert/p' "$data")"
   ids="$(printf '%s\n' "$places" | sed -n "s/^[[:space:]]*id: ['\"]\([^'\"]*\)['\"],$/\1/p")"
   quebec_city_count="$(printf '%s\n' "$places" | sed -n "s/^[[:space:]]*city: ['\"]quebec['\"],$/quebec/p" | awk 'NF { count++ } END { print count + 0 }')"
   id_count="$(printf '%s\n' "$ids" | awk 'NF { count++ } END { print count + 0 }')"
 
-  [ "$quebec_city_count" -eq 6 ] && [ "$id_count" -eq 6 ] || return 1
+  [ "$quebec_city_count" -eq 8 ] && [ "$id_count" -eq 8 ] || return 1
   ! printf '%s\n' "$places" | rg -q "city: ['\"]montreal['\"]" || return 1
 
   for id in $expected; do
@@ -37,7 +37,7 @@ has_exact_real_quebec_places() {
 test_real_quebec_places_only() {
   local fixture removed_id
   has_exact_real_quebec_places "$DATA" || {
-    fail "PLACES doit exposer exactement les six vrais lieux Québec"; return;
+    fail "PLACES doit exposer exactement les huit vrais lieux Québec"; return;
   }
   fixture="$(mktemp)"
   cp "$DATA" "$fixture"
@@ -69,17 +69,17 @@ test_real_quebec_places_only() {
   cp "$DATA" "$fixture"
   sed -i.bak '/\/\/ iso360:insert/i\
   {\
-    id: "septieme-quebec",\
+    id: "neuvieme-quebec",\
     city: "quebec",\
     type: "photo", name: "Test",\
     desc: { fr: "Test", en: "Test" }, credit: "", lat: 46.8, lon: -71.2, media: "test.jpg",\
   },' "$fixture"
   if has_exact_real_quebec_places "$fixture"; then
     rm -f "$fixture" "$fixture.bak"
-    fail "un septième lieu Québec doit faire échouer le contrat"; return;
+    fail "un neuvième lieu Québec doit faire échouer le contrat"; return;
   fi
   rm -f "$fixture" "$fixture.bak"
-  pass "les lieux visibles sont exactement les six Québec; Montréal est refusé"
+  pass "les lieux visibles sont exactement les huit Québec; Montréal est refusé"
 }
 
 test_real_place_metadata_and_previews() {
@@ -93,15 +93,15 @@ test_real_place_metadata_and_previews() {
   [ "$featured_count" -eq 1 ] || {
     fail "un seul lieu doit alimenter le hero"; return;
   }
-  [ "$captured_count" -eq 6 ] || {
-    fail "les six lieux doivent avoir une date de captation"; return;
+  [ "$captured_count" -eq 8 ] || {
+    fail "les huit lieux doivent avoir une date de captation"; return;
   }
-  [ "$preview_count" -eq 6 ] || {
-    fail "les six lieux doivent avoir un aperçu local"; return;
+  [ "$preview_count" -eq 8 ] || {
+    fail "les huit lieux doivent avoir un aperçu local"; return;
   }
-  [ "$preview_width_count" -eq 6 ] &&
-    [ "$preview_height_count" -eq 6 ] || {
-      fail "les six aperçus doivent déclarer leurs dimensions"; return;
+  [ "$preview_width_count" -eq 8 ] &&
+    [ "$preview_height_count" -eq 8 ] || {
+      fail "les huit aperçus doivent déclarer leurs dimensions"; return;
     }
   for preview in "$ROOT"/public/assets/labs360/previews/*.webp; do
     [ -f "$preview" ] || { fail "aperçu WebP manquant"; return; }
@@ -112,13 +112,41 @@ test_real_place_metadata_and_previews() {
     total=$((total + size))
     count=$((count + 1))
   done
-  [ "$count" -eq 6 ] || {
-    fail "exactement six aperçus WebP sont requis"; return;
+  [ "$count" -eq 8 ] || {
+    fail "exactement huit aperçus WebP sont requis"; return;
   }
   [ "$total" -lt 1887437 ] || {
     fail "les aperçus dépassent 1,8 Mo"; return;
   }
   pass "métadonnées et aperçus réels respectent le budget"
+}
+
+test_localized_hybrid_panorama_names() {
+  for expected in \
+    "fr: 'Domaine de Maizerets — Le fleuve au couchant'" \
+    "en: 'Domaine de Maizerets — River at sunset'" \
+    "fr: 'Patro Roc-Amadour — Du terrain à la skyline'" \
+    "en: 'Patro Roc-Amadour — From the field to the skyline'" \
+    "fr: 'Giffard — Entre deux rives'" \
+    "en: 'Giffard — Between two shores'" \
+    "fr: 'Monseigneur-Marcoux — Limoilou sous la neige'" \
+    "en: 'Monseigneur-Marcoux — Limoilou under snow'" \
+    "fr: 'La Canardière — Vers le cœur de Québec'" \
+    "en: 'La Canardière — Toward the heart of Québec'" \
+    "fr: 'D’Estimauville — Entre ville et fleuve'" \
+    "en: 'D’Estimauville — Between city and river'"; do
+    rg -Fq "$expected" "$DATA" || {
+      fail "nom hybride bilingue manquant: $expected"; return;
+    }
+  done
+  rg -Fq "name: { fr: 'Limoilou', en: 'Limoilou' }" "$DATA" &&
+    rg -Fq "name: { fr: 'Colline Parlementaire', en: 'Colline Parlementaire' }" "$DATA" || {
+      fail "les deux photos doivent conserver leur lieu dans les deux langues"; return;
+    }
+  rg -Fq ".map((place) => ({ ...place, name: place.name[lang] }))" "$PAGE" || {
+    fail "les noms doivent être résolus une seule fois à la frontière SSR"; return;
+  }
+  pass "les six panoramas ont un nom hybride bilingue distinct"
 }
 
 test_modal_badge_and_empty_state() {
@@ -174,7 +202,7 @@ NODE
 }
 
 test_quebec_only_markup_and_copy() {
-  rg -Fq "const visiblePlaces = PLACES.filter((p) => p.city === 'quebec')" "$PAGE" || {
+  rg -Fq ".filter((place) => place.city === 'quebec')" "$PAGE" || {
     fail "le runtime filtre explicitement Québec"; return;
   }
   ! rg -q 'data-city-btn|data-legend-city|l360-cities|l360-city' "$PAGE" || {
@@ -497,6 +525,7 @@ NODE
 
 test_real_quebec_places_only
 test_real_place_metadata_and_previews
+test_localized_hybrid_panorama_names
 test_modal_badge_and_empty_state
 test_accessible_viewer_navigation
 test_quebec_only_markup_and_copy

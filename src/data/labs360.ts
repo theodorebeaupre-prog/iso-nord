@@ -21,7 +21,7 @@ export interface Labs360Place {
   id: string;
   city: City;
   type: PlaceType;
-  name: string;                       // nom propre — identique fr/en
+  name: { fr: string; en: string };   // titre éditorial bilingue
   desc: { fr: string; en: string };
   credit: string;
   capturedAt: string;                  // mois de captation, format YYYY-MM
@@ -51,7 +51,10 @@ export const PLACES: Labs360Place[] = [
     id: 'maizerets',
     city: 'quebec',
     type: '360',
-    name: 'Domaine de Maizerets',
+    name: {
+      fr: 'Domaine de Maizerets — Le fleuve au couchant',
+      en: 'Domaine de Maizerets — River at sunset',
+    },
     desc: {
       fr: 'Le domaine et son arboretum, vus du ciel en fin de journée.',
       en: 'The estate and its arboretum, seen from above at dusk.',
@@ -69,7 +72,10 @@ export const PLACES: Labs360Place[] = [
     id: 'patro-roc-amadour',
     city: 'quebec',
     type: '360',
-    name: 'Patro Roc-Amadour',
+    name: {
+      fr: 'Patro Roc-Amadour — Du terrain à la skyline',
+      en: 'Patro Roc-Amadour — From the field to the skyline',
+    },
     desc: {
       fr: 'Le Patro et le quartier Lairet à 100 m d’altitude — le Centre Vidéotron et la skyline de Québec à l’horizon.',
       en: 'The Patro and the Lairet neighbourhood from 100 m up — Centre Vidéotron and the Québec City skyline on the horizon.',
@@ -89,7 +95,10 @@ export const PLACES: Labs360Place[] = [
     id: "giffard",
     city: "quebec",
     type: '360',
-    name: 'Giffard',
+    name: {
+      fr: 'Giffard — Entre deux rives',
+      en: 'Giffard — Between two shores',
+    },
     desc: {
       fr: 'Giffard et Beauport \u00e0 400 m d\u2019altitude \u2014 le fleuve, l\u2019\u00eele d\u2019Orl\u00e9ans et Qu\u00e9bec \u00e0 l\u2019horizon.',
       en: 'Giffard and Beauport from 400 m up \u2014 the river, \u00cele d\u2019Orl\u00e9ans and Qu\u00e9bec City on the horizon.',
@@ -107,7 +116,10 @@ export const PLACES: Labs360Place[] = [
     id: 'centre-monseigneur-marcoux',
     city: 'quebec',
     type: '360',
-    name: 'Centre Monseigneur-Marcoux',
+    name: {
+      fr: 'Monseigneur-Marcoux — Limoilou sous la neige',
+      en: 'Monseigneur-Marcoux — Limoilou under snow',
+    },
     desc: {
       fr: 'Le centre et le quartier Limoilou sous la neige, au coucher du soleil d’hiver.',
       en: 'The centre and the Limoilou neighbourhood under snow, at winter sunset.',
@@ -125,7 +137,7 @@ export const PLACES: Labs360Place[] = [
     id: "limoilou",
     city: "quebec",
     type: "photo",
-    name: "Limoilou",
+    name: { fr: 'Limoilou', en: 'Limoilou' },
     desc: {
       fr: "Limoilou \u2014 vue a\u00e9rienne capt\u00e9e au drone.",
       en: "Limoilou \u2014 aerial view captured by drone.",
@@ -143,7 +155,7 @@ export const PLACES: Labs360Place[] = [
     id: "colline-parlementaire",
     city: "quebec",
     type: "photo",
-    name: "Colline Parlementaire",
+    name: { fr: 'Colline Parlementaire', en: 'Colline Parlementaire' },
     desc: {
       fr: "Colline Parlementaire \u2014 vue a\u00e9rienne capt\u00e9e au drone.",
       en: "Colline Parlementaire \u2014 aerial view captured by drone.",
@@ -161,7 +173,10 @@ export const PLACES: Labs360Place[] = [
     id: "maizerets-2",
     city: "quebec",
     type: "360",
-    name: "Maizerets",
+    name: {
+      fr: 'La Canardière — Vers le cœur de Québec',
+      en: 'La Canardière — Toward the heart of Québec',
+    },
     desc: {
       fr: "Maizerets \u2014 vue a\u00e9rienne capt\u00e9e au drone.",
       en: "Maizerets \u2014 aerial view captured by drone.",
@@ -179,7 +194,10 @@ export const PLACES: Labs360Place[] = [
     id: "maizerets-3",
     city: "quebec",
     type: "360",
-    name: "Maizerets",
+    name: {
+      fr: 'D’Estimauville — Entre ville et fleuve',
+      en: 'D’Estimauville — Between city and river',
+    },
     desc: {
       fr: "Maizerets \u2014 vue a\u00e9rienne capt\u00e9e au drone.",
       en: "Maizerets \u2014 aerial view captured by drone.",

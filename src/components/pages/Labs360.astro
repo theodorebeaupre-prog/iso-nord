@@ -25,7 +25,9 @@ const ogLocale = lang === 'fr' ? 'fr_CA' : 'en_CA';
 const navAria = lang === 'fr' ? 'Navigation principale' : 'Main navigation';
 const pad = (n: number) => String(n).padStart(2, '0');
 
-const visiblePlaces = PLACES.filter((p) => p.city === 'quebec');
+const visiblePlaces = PLACES
+  .filter((place) => place.city === 'quebec')
+  .map((place) => ({ ...place, name: place.name[lang] }));
 const hasPlaces = hasVisiblePlaces(visiblePlaces);
 const featured = visiblePlaces.find((place) => place.featured) ?? visiblePlaces[0];
 const socialImage = SITE + featured.preview;
