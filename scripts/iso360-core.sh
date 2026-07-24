@@ -312,7 +312,8 @@ else:
     lon=g.get('lon') if g.get('lon') is not None else (-71.15 if g['city']=='quebec' else -73.57)
     poster_line=f"    poster: {json.dumps(poster)},\n" if poster else ""
     block=(f"  {{\n    id: {json.dumps(g['id'])},\n    city: {json.dumps(g['city'])},\n"
-           f"    type: {json.dumps(typ)},\n    name: {nm},\n    desc: {{\n      fr: {dfr},\n      en: {den},\n    }},\n"
+           f"    type: {json.dumps(typ)},\n    name: {{\n      fr: {nm},\n      en: {nm},\n    }},\n"
+           f"    desc: {{\n      fr: {dfr},\n      en: {den},\n    }},\n"
            f"    credit: '',\n    capturedAt: {json.dumps(captured)},\n"
            f"    lat: {lat}, lon: {lon},\n"
            f"    // {note} ({g.get('dt','')})\n"

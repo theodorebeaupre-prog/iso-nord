@@ -396,13 +396,16 @@ test_wire_includes_preview_contract() {
       core_wire >/dev/null
   )
 
-  if rg -q 'capturedAt: ["'\"']2026-07["'\"']' "$data" \
+  if rg -Fq 'name: {' "$data" \
+    && rg -Fq 'fr: "Test Qu\u00e9bec"' "$data" \
+    && rg -Fq 'en: "Test Qu\u00e9bec"' "$data" \
+    && rg -q 'capturedAt: ["'\"']2026-07["'\"']' "$data" \
     && rg -q 'preview: ["'\"']/assets/labs360/previews/test-quebec\.webp["'\"']' "$data" \
     && rg -Fq 'previewWidth: 1600' "$data" \
     && rg -Fq 'previewHeight: 800' "$data"; then
-    pass "le câblage ajoute date et aperçu optimisé"
+    pass "le câblage ajoute nom bilingue, date et aperçu optimisé"
   else
-    fail "le câblage doit respecter le nouveau contrat d’aperçu"
+    fail "le câblage doit respecter le contrat bilingue et d’aperçu"
   fi
 }
 
